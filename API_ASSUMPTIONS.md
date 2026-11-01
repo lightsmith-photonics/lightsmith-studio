@@ -15,8 +15,8 @@ Status:
 - **proposed**: Studio implements it, but the other service does not offer it yet.
 
 Contracts:
-- compute: `services/compute/API.md` and `openapi.json`;
-- materials-db: `services/materials-db` (`/docs`).
+- compute (Lightsmith Cloud): `../lightsmith-cloud/API.md` and `openapi.json`;
+- materials-db: `../PlasmonHub/services/materials-db` (`/docs`).
 
 Studio reaches both only through URL configuration (`src/config/runtime.ts`): build-time `VITE_*`
 or runtime `config.js` (Docker `STUDIO_*`).
@@ -58,7 +58,7 @@ servers:
 `compare` returns `{reference, results: {name: <any kind>}, relative_difference}`. For
 non-scattering kinds Studio overlays the per-method results in the kind's viewer.
 
-## Materials (`services/materials-db`, `http://localhost:8100`)
+## Materials (materials-db, `http://localhost:8100`)
 
 | Endpoint | Studio uses | Status |
 |---|---|---|
@@ -70,7 +70,7 @@ non-scattering kinds Studio overlays the per-method results in the kind's viewer
 
 Configured by `auth.mode` in the runtime config.
 
-- **`community`** (**proposed** for the Community app, `apps/web`):
+- **`community`** (**proposed** for the Community app, `../PlasmonHub/apps/web`):
   1. Studio requests `GET {communityUrl}/studio/connect?return_to=<studio origin+path>&state=<nonce>`.
   2. The Community app signs the user in. It should check `return_to` against an allow-list of
      Studio origins.

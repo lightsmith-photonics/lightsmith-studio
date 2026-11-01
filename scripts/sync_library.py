@@ -1,6 +1,6 @@
 """Snapshot what Studio needs from the Lightsmith library into src/generated/.
 
-Run from apps/studio with `npm run sync:library` (uses the repo's uv project).
+Run with `npm run sync:library` (uses the library's uv project in ../PlasmonHub).
 The snapshot is the offline fallback and the source for the mock servers; at
 runtime Studio prefers the live compute server (`GET /v1/schema`, ...).
 

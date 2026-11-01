@@ -1,4 +1,4 @@
-// Compute API clients. `HttpComputeClient` talks to services/compute (local
+// Compute API clients. `HttpComputeClient` talks to Lightsmith Cloud (lightsmith-cloud; local
 // or hosted); `MockComputeClient` implements the same contract in the browser.
 // Every endpoint used here is listed in API_ASSUMPTIONS.md.
 
@@ -36,7 +36,7 @@ export interface ComputeClient {
 }
 
 export const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
-/** Compute API contract (services/compute API.md): WebSocket auth subprotocol. */
+/** Compute API contract (lightsmith-cloud API.md): WebSocket auth subprotocol. */
 const WS_AUTH_SUBPROTOCOL = "lightsmith.bearer";
 
 /** Turn any error body (ours, FastAPI's `detail`, plain text) into an ApiError. */
@@ -276,7 +276,7 @@ export class HttpComputeClient implements ComputeClient {
   }
 }
 
-// The server's wire shapes (services/compute API.md) -> Studio's.
+// The server's wire shapes (lightsmith-cloud API.md) -> Studio's.
 type RawJob = JobState & { job_id?: string; kind?: string; stage?: string; warnings?: string[]; result_url?: string };
 
 function normalizeJob(j: RawJob): JobState & { result_url?: string } {

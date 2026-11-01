@@ -1,7 +1,7 @@
 # Lightsmith Studio
 
 A GUI for setting up, running and analysing photonics simulations with the
-[Lightsmith](../../README.md) library. It does everything the library does, and nothing it can't:
+Lightsmith library (repository `PlasmonHub`, expected next to this one). It does everything the library does, and nothing it can't:
 - every form is generated from the library's JSON Schema;
 - every action is a JSON edit to the same spec the `lightsmith` CLI reads.
 
@@ -67,7 +67,7 @@ uses the **built-in mock server** and says so in the status bar. In the mock:
 **Against a real local server:**
 
 ```bash
-cd services/compute
+cd ../lightsmith-cloud
 uv sync --extra gpu
 uv run lightsmith-server
 ```

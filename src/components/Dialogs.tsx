@@ -141,7 +141,7 @@ export function SettingsDialog() {
     }
   };
   const modes: { id: ServerMode; label: string; help: string }[] = [
-    { id: "local", label: "Local server", help: `services/compute on this machine, no auth (uv run ${LIBRARY.server})` },
+    { id: "local", label: "Local server", help: `${LIBRARY.serverRepo} on this machine, no auth (uv run ${LIBRARY.server})` },
     { id: "hosted", label: "Hosted endpoint", help: "a hosted compute service; requests carry your API key" },
     { id: "mock", label: "Built-in mock", help: "in-browser stand-in for development and demos; approximate physics" },
   ];

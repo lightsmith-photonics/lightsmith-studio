@@ -1,6 +1,6 @@
-// Studio against a real compute server (services/compute). Skipped unless
+// Studio against a real compute server (../lightsmith-cloud). Skipped unless
 // STUDIO_COMPUTE_URL is set, e.g.
-//   LIGHTSMITH_CORS_ORIGINS=http://localhost:5174 uv run lightsmith-server   (in services/compute)
+//   LIGHTSMITH_CORS_ORIGINS=http://localhost:5174 uv run lightsmith-server   (in ../lightsmith-cloud)
 //   STUDIO_COMPUTE_URL=http://localhost:8200 npx playwright test real-server
 
 import { expect, test } from "@playwright/test";

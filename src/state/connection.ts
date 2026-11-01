@@ -127,7 +127,7 @@ export const useConnection = create<ConnectionState>((set, get) => ({
         const url = client.baseUrl;
         set({ settings: { ...get().settings, mode: "mock" }, client: mockClient });
         await get().connect();
-        set({ notice: `No compute server at ${url}; using the built-in mock server. Start one with \`uv run ${LIBRARY.server}\` in services/compute and pick "Local" in Server settings.` });
+        set({ notice: `No compute server at ${url}; using the built-in mock server. Start one with \`uv run ${LIBRARY.server}\` in ${LIBRARY.serverRepo} and pick "Local" in Server settings.` });
         return;
       }
       set({ status: "error", error: (e as Error).message });

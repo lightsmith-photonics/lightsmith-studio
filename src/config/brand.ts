@@ -20,6 +20,7 @@ export const LIBRARY = {
   cli: "lightsmith",
   /** MCP server command */
   mcp: "lightsmith-mcp",
-  /** Local compute server command (services/compute) */
+  /** Local compute server command, and the repository it lives in */
   server: "lightsmith-server",
+  serverRepo: "lightsmith-cloud",
 };

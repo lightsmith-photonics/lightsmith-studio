@@ -1,4 +1,4 @@
-// Materials API client (services/materials-db) and an in-browser mock backed by
+// Materials API client (materials-db, in the Lightsmith repo under services/materials-db) and an in-browser mock backed by
 // the library snapshot. Endpoints are listed in API_ASSUMPTIONS.md.
 
 import { LIBRARY } from "../physics/materials";

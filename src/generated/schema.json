@@ -1,0 +1,3120 @@
+{
+ "$defs": {
+  "Ball": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "ball",
+     "default": "ball",
+     "title": "Kind",
+     "type": "string"
+    },
+    "center_nm": {
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Center Nm",
+     "type": "array"
+    },
+    "radius_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Radius Nm",
+     "type": "number"
+    }
+   },
+   "required": [
+    "radius_nm"
+   ],
+   "title": "Ball",
+   "type": "object"
+  },
+  "BandProblem": {
+   "additionalProperties": false,
+   "description": "Band structure of a photonic crystal along a k-path.",
+   "properties": {
+    "kind": {
+     "const": "bands",
+     "default": "bands",
+     "title": "Kind",
+     "type": "string"
+    },
+    "dimension": {
+     "default": 2,
+     "enum": [
+      2,
+      3
+     ],
+     "title": "Dimension",
+     "type": "integer"
+    },
+    "lattice_vectors_nm": {
+     "items": {
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "number"
+       },
+       {
+        "type": "number"
+       }
+      ],
+      "type": "array"
+     },
+     "maxItems": 3,
+     "minItems": 2,
+     "title": "Lattice Vectors Nm",
+     "type": "array"
+    },
+    "background": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Background"
+    },
+    "structures_2d": {
+     "description": "Unit-cell inclusions for 2D crystals.",
+     "items": {
+      "$ref": "#/$defs/Structure2D"
+     },
+     "title": "Structures 2D",
+     "type": "array"
+    },
+    "structures": {
+     "description": "Unit-cell inclusions for 3D crystals.",
+     "items": {
+      "$ref": "#/$defs/Structure"
+     },
+     "title": "Structures",
+     "type": "array"
+    },
+    "k_path": {
+     "items": {
+      "$ref": "#/$defs/KPoint"
+     },
+     "minItems": 2,
+     "title": "K Path",
+     "type": "array"
+    },
+    "points_per_segment": {
+     "default": 16,
+     "minimum": 1,
+     "title": "Points Per Segment",
+     "type": "integer"
+    },
+    "num_bands": {
+     "default": 8,
+     "minimum": 1,
+     "title": "Num Bands",
+     "type": "integer"
+    },
+    "polarization": {
+     "default": "both",
+     "description": "2D only: TE = E in plane, TM = E along z.",
+     "enum": [
+      "te",
+      "tm",
+      "both"
+     ],
+     "title": "Polarization",
+     "type": "string"
+    },
+    "options": {
+     "additionalProperties": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "title": "Options",
+     "type": "object"
+    }
+   },
+   "required": [
+    "lattice_vectors_nm",
+    "background",
+    "k_path"
+   ],
+   "title": "BandProblem",
+   "type": "object"
+  },
+  "Box": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "box",
+     "default": "box",
+     "title": "Kind",
+     "type": "string"
+    },
+    "center_nm": {
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Center Nm",
+     "type": "array"
+    },
+    "size_nm": {
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Size Nm",
+     "type": "array"
+    }
+   },
+   "required": [
+    "size_nm"
+   ],
+   "title": "Box",
+   "type": "object"
+  },
+  "Circle": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "circle",
+     "default": "circle",
+     "title": "Kind",
+     "type": "string"
+    },
+    "center_nm": {
+     "default": [
+      0.0,
+      0.0
+     ],
+     "maxItems": 2,
+     "minItems": 2,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Center Nm",
+     "type": "array"
+    },
+    "radius_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Radius Nm",
+     "type": "number"
+    }
+   },
+   "required": [
+    "radius_nm"
+   ],
+   "title": "Circle",
+   "type": "object"
+  },
+  "CircuitProblem": {
+   "additionalProperties": false,
+   "description": "A netlist of components with S-parameter models; solves the circuit S-matrix.",
+   "properties": {
+    "kind": {
+     "const": "circuit",
+     "default": "circuit",
+     "title": "Kind",
+     "type": "string"
+    },
+    "instances": {
+     "additionalProperties": {
+      "$ref": "#/$defs/Instance"
+     },
+     "title": "Instances",
+     "type": "object"
+    },
+    "connections": {
+     "description": "Pairs of 'instance,port'.",
+     "items": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "type": "array"
+     },
+     "title": "Connections",
+     "type": "array"
+    },
+    "ports": {
+     "additionalProperties": {
+      "type": "string"
+     },
+     "description": "External port name -> 'instance,port'.",
+     "title": "Ports",
+     "type": "object"
+    },
+    "wavelengths": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      {
+       "$ref": "#/$defs/WavelengthRange"
+      }
+     ],
+     "title": "Wavelengths"
+    },
+    "options": {
+     "additionalProperties": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "title": "Options",
+     "type": "object"
+    }
+   },
+   "required": [
+    "instances",
+    "ports",
+    "wavelengths"
+   ],
+   "title": "CircuitProblem",
+   "type": "object"
+  },
+  "ConstantIndex": {
+   "additionalProperties": false,
+   "description": "Wavelength-independent complex refractive index n + ik.",
+   "properties": {
+    "kind": {
+     "const": "constant_index",
+     "default": "constant_index",
+     "title": "Kind",
+     "type": "string"
+    },
+    "n_real": {
+     "description": "Real part of the refractive index.",
+     "title": "N Real",
+     "type": "number"
+    },
+    "n_imag": {
+     "default": 0.0,
+     "description": "Extinction coefficient k (>= 0 for loss).",
+     "minimum": 0,
+     "title": "N Imag",
+     "type": "number"
+    }
+   },
+   "required": [
+    "n_real"
+   ],
+   "title": "ConstantIndex",
+   "type": "object"
+  },
+  "ConstantPermittivity": {
+   "additionalProperties": false,
+   "description": "Wavelength-independent complex relative permittivity.",
+   "properties": {
+    "kind": {
+     "const": "constant_permittivity",
+     "default": "constant_permittivity",
+     "title": "Kind",
+     "type": "string"
+    },
+    "eps_real": {
+     "title": "Eps Real",
+     "type": "number"
+    },
+    "eps_imag": {
+     "default": 0.0,
+     "minimum": 0,
+     "title": "Eps Imag",
+     "type": "number"
+    }
+   },
+   "required": [
+    "eps_real"
+   ],
+   "title": "ConstantPermittivity",
+   "type": "object"
+  },
+  "Cylinder": {
+   "additionalProperties": false,
+   "description": "Flat-ended cylinder with axis along z.",
+   "properties": {
+    "kind": {
+     "const": "cylinder",
+     "default": "cylinder",
+     "title": "Kind",
+     "type": "string"
+    },
+    "radius_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Radius Nm",
+     "type": "number"
+    },
+    "length_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Length Nm",
+     "type": "number"
+    }
+   },
+   "required": [
+    "radius_nm",
+    "length_nm"
+   ],
+   "title": "Cylinder",
+   "type": "object"
+  },
+  "DesignRegion": {
+   "additionalProperties": false,
+   "description": "A box whose permittivity is free: density 0 -> material_low, 1 -> material_high.",
+   "properties": {
+    "name": {
+     "default": "design",
+     "title": "Name",
+     "type": "string"
+    },
+    "center_nm": {
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Center Nm",
+     "type": "array"
+    },
+    "size_nm": {
+     "description": "Box size; z is ignored in 2D.",
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Size Nm",
+     "type": "array"
+    },
+    "material_low": {
+     "description": "Material at density 0 (usually the cladding).",
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Material Low"
+    },
+    "material_high": {
+     "description": "Material at density 1 (usually the core).",
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Material High"
+    },
+    "init": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "const": "random",
+       "type": "string"
+      }
+     ],
+     "default": 0.5,
+     "description": "Initial density, or 'random' (seeded).",
+     "title": "Init"
+    },
+    "seed": {
+     "default": 0,
+     "title": "Seed",
+     "type": "integer"
+    },
+    "filter_radius_nm": {
+     "default": 0.0,
+     "description": "Conic filter radius; 0 = no filter.",
+     "minimum": 0,
+     "title": "Filter Radius Nm",
+     "type": "number"
+    },
+    "eta": {
+     "default": 0.5,
+     "description": "Projection threshold.",
+     "exclusiveMaximum": 1,
+     "exclusiveMinimum": 0,
+     "title": "Eta",
+     "type": "number"
+    },
+    "min_feature_nm": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Minimum solid and void feature size, imposed with lengthscale penalties (needs filter_radius_nm >= min_feature_nm / 2).",
+     "title": "Min Feature Nm"
+    },
+    "symmetry": {
+     "description": "Mirror symmetry: 'x' = symmetric under x -> -x about the region centre, 'y' likewise.",
+     "items": {
+      "enum": [
+       "x",
+       "y"
+      ],
+      "type": "string"
+     },
+     "title": "Symmetry",
+     "type": "array"
+    }
+   },
+   "required": [
+    "size_nm",
+    "material_low",
+    "material_high"
+   ],
+   "title": "DesignRegion",
+   "type": "object"
+  },
+  "DeviceProblem": {
+   "additionalProperties": false,
+   "description": "A photonic device (waveguides, couplers, gratings, ...) characterised by its S-matrix.",
+   "properties": {
+    "kind": {
+     "const": "device",
+     "default": "device",
+     "title": "Kind",
+     "type": "string"
+    },
+    "dimension": {
+     "default": 3,
+     "enum": [
+      2,
+      3
+     ],
+     "title": "Dimension",
+     "type": "integer"
+    },
+    "structures": {
+     "items": {
+      "$ref": "#/$defs/Structure"
+     },
+     "title": "Structures",
+     "type": "array"
+    },
+    "layout": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/GdsLayout"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "background": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Background"
+    },
+    "domain_center_nm": {
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Domain Center Nm",
+     "type": "array"
+    },
+    "domain_size_nm": {
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Domain Size Nm",
+     "type": "array"
+    },
+    "ports": {
+     "items": {
+      "$ref": "#/$defs/Port"
+     },
+     "minItems": 1,
+     "title": "Ports",
+     "type": "array"
+    },
+    "wavelengths": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      {
+       "$ref": "#/$defs/WavelengthRange"
+      }
+     ],
+     "title": "Wavelengths"
+    },
+    "options": {
+     "additionalProperties": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "title": "Options",
+     "type": "object"
+    }
+   },
+   "required": [
+    "background",
+    "domain_size_nm",
+    "ports",
+    "wavelengths"
+   ],
+   "title": "DeviceProblem",
+   "type": "object"
+  },
+  "Drude": {
+   "additionalProperties": false,
+   "description": "eps(w) = eps_inf - wp^2 / (w^2 + i*gamma*w), energies in eV.",
+   "properties": {
+    "kind": {
+     "const": "drude",
+     "default": "drude",
+     "title": "Kind",
+     "type": "string"
+    },
+    "eps_inf": {
+     "default": 1.0,
+     "title": "Eps Inf",
+     "type": "number"
+    },
+    "wp_ev": {
+     "description": "Plasma frequency in eV.",
+     "exclusiveMinimum": 0,
+     "title": "Wp Ev",
+     "type": "number"
+    },
+    "gamma_ev": {
+     "description": "Damping rate in eV.",
+     "minimum": 0,
+     "title": "Gamma Ev",
+     "type": "number"
+    }
+   },
+   "required": [
+    "wp_ev",
+    "gamma_ev"
+   ],
+   "title": "Drude",
+   "type": "object"
+  },
+  "DrudeLorentz": {
+   "additionalProperties": false,
+   "description": "eps(w) = eps_inf - wp^2/(w^2 + i g w) + sum_j d_j w0_j^2 / (w0_j^2 - w^2 - i G_j w).\n\nThe form FDTD needs for auxiliary-differential-equation dispersion.\nFit one to measured data with :func:`lightsmith.materials_fit.fit_drude_lorentz`.",
+   "properties": {
+    "kind": {
+     "const": "drude_lorentz",
+     "default": "drude_lorentz",
+     "title": "Kind",
+     "type": "string"
+    },
+    "eps_inf": {
+     "default": 1.0,
+     "title": "Eps Inf",
+     "type": "number"
+    },
+    "wp_ev": {
+     "default": 0.0,
+     "minimum": 0,
+     "title": "Wp Ev",
+     "type": "number"
+    },
+    "gamma_ev": {
+     "default": 0.0,
+     "minimum": 0,
+     "title": "Gamma Ev",
+     "type": "number"
+    },
+    "poles": {
+     "items": {
+      "$ref": "#/$defs/LorentzPole"
+     },
+     "title": "Poles",
+     "type": "array"
+    }
+   },
+   "title": "DrudeLorentz",
+   "type": "object"
+  },
+  "Ellipse": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "ellipse",
+     "default": "ellipse",
+     "title": "Kind",
+     "type": "string"
+    },
+    "center_nm": {
+     "default": [
+      0.0,
+      0.0
+     ],
+     "maxItems": 2,
+     "minItems": 2,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Center Nm",
+     "type": "array"
+    },
+    "semi_axes_nm": {
+     "maxItems": 2,
+     "minItems": 2,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Semi Axes Nm",
+     "type": "array"
+    },
+    "angle_deg": {
+     "default": 0.0,
+     "title": "Angle Deg",
+     "type": "number"
+    }
+   },
+   "required": [
+    "semi_axes_nm"
+   ],
+   "title": "Ellipse",
+   "type": "object"
+  },
+  "FarFieldRequest": {
+   "additionalProperties": false,
+   "description": "Differential scattering cross section dC_sca/dOmega on a theta x phi grid.\n\ntheta is measured from the incident direction; phi is the azimuth around it,\nmeasured from the incident polarization (phi=0 is the E-plane, 90 the H-plane).",
+   "properties": {
+    "theta_deg": {
+     "items": {
+      "type": "number"
+     },
+     "minItems": 1,
+     "title": "Theta Deg",
+     "type": "array"
+    },
+    "phi_deg": {
+     "default": [
+      0.0,
+      90.0
+     ],
+     "items": {
+      "type": "number"
+     },
+     "minItems": 1,
+     "title": "Phi Deg",
+     "type": "array"
+    },
+    "wavelengths_nm": {
+     "items": {
+      "type": "number"
+     },
+     "minItems": 1,
+     "title": "Wavelengths Nm",
+     "type": "array"
+    }
+   },
+   "required": [
+    "theta_deg",
+    "wavelengths_nm"
+   ],
+   "title": "FarFieldRequest",
+   "type": "object"
+  },
+  "FieldIntensityTerm": {
+   "additionalProperties": false,
+   "description": "Mean |field|^2 (Hz for TE, Ez for TM) in a box, with one port mode as the source.",
+   "properties": {
+    "weight": {
+     "default": 1.0,
+     "exclusiveMinimum": 0,
+     "title": "Weight",
+     "type": "number"
+    },
+    "goal": {
+     "default": "maximize",
+     "enum": [
+      "maximize",
+      "minimize",
+      "target"
+     ],
+     "title": "Goal",
+     "type": "string"
+    },
+    "target": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "For goal='target': penalise (value - target)^2.",
+     "title": "Target"
+    },
+    "aggregate": {
+     "default": "mean",
+     "description": "Over wavelengths. 'min' (worst-case for maximize) uses a smooth minimum.",
+     "enum": [
+      "mean",
+      "min",
+      "max"
+     ],
+     "title": "Aggregate",
+     "type": "string"
+    },
+    "wavelength_weights": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Per-wavelength weights for 'mean'.",
+     "title": "Wavelength Weights"
+    },
+    "kind": {
+     "const": "field_intensity",
+     "default": "field_intensity",
+     "title": "Kind",
+     "type": "string"
+    },
+    "source_port": {
+     "title": "Source Port",
+     "type": "string"
+    },
+    "source_mode": {
+     "default": 0,
+     "minimum": 0,
+     "title": "Source Mode",
+     "type": "integer"
+    },
+    "center_nm": {
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Center Nm",
+     "type": "array"
+    },
+    "size_nm": {
+     "description": "Box size; zero sizes select a line or point.",
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Size Nm",
+     "type": "array"
+    }
+   },
+   "required": [
+    "source_port",
+    "center_nm",
+    "size_nm"
+   ],
+   "title": "FieldIntensityTerm",
+   "type": "object"
+  },
+  "GdsLayout": {
+   "additionalProperties": false,
+   "description": "Import geometry from a GDS file: each layer/datatype is extruded with a material.",
+   "properties": {
+    "path": {
+     "title": "Path",
+     "type": "string"
+    },
+    "cell": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Cell"
+    },
+    "layer_map": {
+     "additionalProperties": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "description": "'layer/datatype' -> {'material': Material JSON, 'z_min_nm': .., 'z_max_nm': ..}",
+     "title": "Layer Map",
+     "type": "object"
+    }
+   },
+   "required": [
+    "path",
+    "layer_map"
+   ],
+   "title": "GdsLayout",
+   "type": "object"
+  },
+  "Incidence": {
+   "additionalProperties": false,
+   "properties": {
+    "theta_deg": {
+     "default": 0.0,
+     "title": "Theta Deg",
+     "type": "number"
+    },
+    "phi_deg": {
+     "default": 0.0,
+     "title": "Phi Deg",
+     "type": "number"
+    },
+    "polarizations": {
+     "default": [
+      "s",
+      "p"
+     ],
+     "items": {
+      "enum": [
+       "s",
+       "p"
+      ],
+      "type": "string"
+     },
+     "title": "Polarizations",
+     "type": "array"
+    }
+   },
+   "title": "Incidence",
+   "type": "object"
+  },
+  "Instance": {
+   "additionalProperties": false,
+   "properties": {
+    "component": {
+     "description": "Registered compact model name, e.g. 'waveguide', 'mmi1x2', or 'sparams:<file>'.",
+     "title": "Component",
+     "type": "string"
+    },
+    "settings": {
+     "additionalProperties": true,
+     "title": "Settings",
+     "type": "object"
+    }
+   },
+   "required": [
+    "component"
+   ],
+   "title": "Instance",
+   "type": "object"
+  },
+  "KPoint": {
+   "additionalProperties": false,
+   "properties": {
+    "label": {
+     "title": "Label",
+     "type": "string"
+    },
+    "reduced": {
+     "description": "Coordinates in units of the reciprocal lattice vectors.",
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Reduced",
+     "type": "array"
+    }
+   },
+   "required": [
+    "label",
+    "reduced"
+   ],
+   "title": "KPoint",
+   "type": "object"
+  },
+  "Layer": {
+   "additionalProperties": false,
+   "properties": {
+    "thickness_nm": {
+     "minimum": 0,
+     "title": "Thickness Nm",
+     "type": "number"
+    },
+    "material": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Material"
+    },
+    "coherent": {
+     "default": true,
+     "description": "False for thick incoherent layers (e.g. a 1 mm substrate slab).",
+     "title": "Coherent",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "thickness_nm",
+    "material"
+   ],
+   "title": "Layer",
+   "type": "object"
+  },
+  "LayerStackProblem": {
+   "additionalProperties": false,
+   "description": "Planar multilayer: reflection/transmission/absorption vs wavelength and angle.",
+   "properties": {
+    "kind": {
+     "const": "layer_stack",
+     "default": "layer_stack",
+     "title": "Kind",
+     "type": "string"
+    },
+    "superstrate": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Superstrate"
+    },
+    "layers": {
+     "description": "From the superstrate side to the substrate side.",
+     "items": {
+      "$ref": "#/$defs/Layer"
+     },
+     "title": "Layers",
+     "type": "array"
+    },
+    "substrate": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Substrate"
+    },
+    "wavelengths": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      {
+       "$ref": "#/$defs/WavelengthRange"
+      }
+     ],
+     "title": "Wavelengths"
+    },
+    "angles_deg": {
+     "default": [
+      0.0
+     ],
+     "description": "Angles of incidence in the superstrate.",
+     "items": {
+      "type": "number"
+     },
+     "title": "Angles Deg",
+     "type": "array"
+    },
+    "polarizations": {
+     "default": [
+      "s",
+      "p"
+     ],
+     "items": {
+      "enum": [
+       "s",
+       "p"
+      ],
+      "type": "string"
+     },
+     "title": "Polarizations",
+     "type": "array"
+    },
+    "options": {
+     "additionalProperties": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "title": "Options",
+     "type": "object"
+    }
+   },
+   "required": [
+    "superstrate",
+    "substrate",
+    "wavelengths"
+   ],
+   "title": "LayerStackProblem",
+   "type": "object"
+  },
+  "LayeredSphere": {
+   "additionalProperties": false,
+   "description": "Core-shell / multilayer sphere. The particle's `material` is the core;\n`shells` are listed from the inside out.",
+   "properties": {
+    "kind": {
+     "const": "layered_sphere",
+     "default": "layered_sphere",
+     "title": "Kind",
+     "type": "string"
+    },
+    "core_radius_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Core Radius Nm",
+     "type": "number"
+    },
+    "shells": {
+     "items": {
+      "$ref": "#/$defs/Shell"
+     },
+     "minItems": 1,
+     "title": "Shells",
+     "type": "array"
+    }
+   },
+   "required": [
+    "core_radius_nm",
+    "shells"
+   ],
+   "title": "LayeredSphere",
+   "type": "object"
+  },
+  "LibraryMaterial": {
+   "additionalProperties": false,
+   "description": "Measured n, k bundled with lightsmith, e.g. ``{\"kind\": \"library\", \"name\": \"Au\",\n\"dataset\": \"Johnson-Christy\"}``. Linear interpolation in n and k, no extrapolation.\n\nNames and datasets accept aliases (\"gold\", \"JC\") and are stored in canonical form;\nan omitted dataset is filled with the material's default so the spec stays\nreproducible. See :func:`list_materials`.",
+   "properties": {
+    "kind": {
+     "const": "library",
+     "default": "library",
+     "title": "Kind",
+     "type": "string"
+    },
+    "name": {
+     "description": "Material, e.g. 'Au', 'Ag', 'Al', 'Cu', 'Si', 'TiO2', 'SiO2', 'H2O'.",
+     "title": "Name",
+     "type": "string"
+    },
+    "dataset": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Dataset, e.g. 'Johnson-Christy'; omitted = material default.",
+     "title": "Dataset"
+    }
+   },
+   "required": [
+    "name"
+   ],
+   "title": "LibraryMaterial",
+   "type": "object"
+  },
+  "LorentzPole": {
+   "additionalProperties": false,
+   "properties": {
+    "delta_eps": {
+     "description": "Oscillator strength (permittivity step).",
+     "title": "Delta Eps",
+     "type": "number"
+    },
+    "omega0_ev": {
+     "description": "Resonance energy in eV.",
+     "exclusiveMinimum": 0,
+     "title": "Omega0 Ev",
+     "type": "number"
+    },
+    "gamma_ev": {
+     "description": "Damping in eV.",
+     "minimum": 0,
+     "title": "Gamma Ev",
+     "type": "number"
+    }
+   },
+   "required": [
+    "delta_eps",
+    "omega0_ev",
+    "gamma_ev"
+   ],
+   "title": "LorentzPole",
+   "type": "object"
+  },
+  "ModeProblem": {
+   "additionalProperties": false,
+   "description": "Eigenmodes of a waveguide cross-section (xy plane), propagation along +z.",
+   "properties": {
+    "kind": {
+     "const": "mode",
+     "default": "mode",
+     "title": "Kind",
+     "type": "string"
+    },
+    "structures": {
+     "items": {
+      "$ref": "#/$defs/Structure2D"
+     },
+     "minItems": 1,
+     "title": "Structures",
+     "type": "array"
+    },
+    "background": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Background"
+    },
+    "window_center_nm": {
+     "default": [
+      0.0,
+      0.0
+     ],
+     "maxItems": 2,
+     "minItems": 2,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Window Center Nm",
+     "type": "array"
+    },
+    "window_size_nm": {
+     "maxItems": 2,
+     "minItems": 2,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Window Size Nm",
+     "type": "array"
+    },
+    "wavelengths": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      {
+       "$ref": "#/$defs/WavelengthRange"
+      }
+     ],
+     "title": "Wavelengths"
+    },
+    "num_modes": {
+     "default": 2,
+     "minimum": 1,
+     "title": "Num Modes",
+     "type": "integer"
+    },
+    "target_neff": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Search near this effective index (default: highest index).",
+     "title": "Target Neff"
+    },
+    "bend_radius_nm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Bend about the y axis; None = straight.",
+     "title": "Bend Radius Nm"
+    },
+    "include_fields": {
+     "default": false,
+     "title": "Include Fields",
+     "type": "boolean"
+    },
+    "options": {
+     "additionalProperties": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "title": "Options",
+     "type": "object"
+    }
+   },
+   "required": [
+    "structures",
+    "background",
+    "window_size_nm",
+    "wavelengths"
+   ],
+   "title": "ModeProblem",
+   "type": "object"
+  },
+  "NearFieldRequest": {
+   "additionalProperties": false,
+   "description": "Total electric field on a square plane through the scene.",
+   "properties": {
+    "plane": {
+     "default": "xz",
+     "enum": [
+      "xy",
+      "xz",
+      "yz"
+     ],
+     "title": "Plane",
+     "type": "string"
+    },
+    "offset_nm": {
+     "default": 0.0,
+     "description": "Position of the plane along its normal.",
+     "title": "Offset Nm",
+     "type": "number"
+    },
+    "half_width_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Half Width Nm",
+     "type": "number"
+    },
+    "points": {
+     "default": 101,
+     "description": "Samples per axis.",
+     "minimum": 2,
+     "title": "Points",
+     "type": "integer"
+    },
+    "wavelengths_nm": {
+     "description": "Vacuum wavelengths to sample.",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 1,
+     "title": "Wavelengths Nm",
+     "type": "array"
+    }
+   },
+   "required": [
+    "half_width_nm",
+    "wavelengths_nm"
+   ],
+   "title": "NearFieldRequest",
+   "type": "object"
+  },
+  "OptimizationProblem": {
+   "additionalProperties": false,
+   "description": "Topology optimisation of a device: maximise sum(weight * term) (minimise terms with goal='minimize').",
+   "properties": {
+    "kind": {
+     "const": "optimization",
+     "default": "optimization",
+     "title": "Kind",
+     "type": "string"
+    },
+    "device": {
+     "$ref": "#/$defs/DeviceProblem"
+    },
+    "design_regions": {
+     "items": {
+      "$ref": "#/$defs/DesignRegion"
+     },
+     "minItems": 1,
+     "title": "Design Regions",
+     "type": "array"
+    },
+    "objective": {
+     "items": {
+      "discriminator": {
+       "mapping": {
+        "field_intensity": "#/$defs/FieldIntensityTerm",
+        "sparameter": "#/$defs/SParameterTerm"
+       },
+       "propertyName": "kind"
+      },
+      "oneOf": [
+       {
+        "$ref": "#/$defs/SParameterTerm"
+       },
+       {
+        "$ref": "#/$defs/FieldIntensityTerm"
+       }
+      ]
+     },
+     "minItems": 1,
+     "title": "Objective",
+     "type": "array"
+    },
+    "optimizer": {
+     "$ref": "#/$defs/OptimizerSettings",
+     "default": {
+      "method": "mma",
+      "max_iter": 100,
+      "learning_rate": 0.02,
+      "move_limit": 0.2,
+      "beta_start": 4.0,
+      "beta_max": 64.0,
+      "beta_growth": 2.0,
+      "beta_every": 20,
+      "lengthscale_weight": 100.0,
+      "lengthscale_from_beta": 16.0,
+      "ftol": 0.0
+     }
+    },
+    "backend": {
+     "default": "lightsmith-fdfd",
+     "description": "Any backend with differentiable=True and differentiable_solve (see lightsmith.inverse).",
+     "title": "Backend",
+     "type": "string"
+    },
+    "options": {
+     "additionalProperties": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "title": "Options",
+     "type": "object"
+    }
+   },
+   "required": [
+    "device",
+    "design_regions",
+    "objective"
+   ],
+   "title": "OptimizationProblem",
+   "type": "object"
+  },
+  "OptimizerSettings": {
+   "additionalProperties": false,
+   "properties": {
+    "method": {
+     "default": "mma",
+     "description": "mma = globally convergent MMA (monotone; Svanberg 2002); adam; lbfgsb = SciPy L-BFGS-B.",
+     "enum": [
+      "mma",
+      "adam",
+      "lbfgsb"
+     ],
+     "title": "Method",
+     "type": "string"
+    },
+    "max_iter": {
+     "default": 100,
+     "description": "Total objective/gradient evaluations budget (outer iterations).",
+     "minimum": 1,
+     "title": "Max Iter",
+     "type": "integer"
+    },
+    "learning_rate": {
+     "default": 0.02,
+     "description": "Adam step size (densities are in [0, 1]).",
+     "exclusiveMinimum": 0,
+     "title": "Learning Rate",
+     "type": "number"
+    },
+    "move_limit": {
+     "default": 0.2,
+     "description": "MMA max change per iteration.",
+     "exclusiveMinimum": 0,
+     "maximum": 1,
+     "title": "Move Limit",
+     "type": "number"
+    },
+    "beta_start": {
+     "default": 4.0,
+     "description": "Initial projection sharpness.",
+     "minimum": 0,
+     "title": "Beta Start",
+     "type": "number"
+    },
+    "beta_max": {
+     "default": 64.0,
+     "minimum": 0,
+     "title": "Beta Max",
+     "type": "number"
+    },
+    "beta_growth": {
+     "default": 2.0,
+     "description": "beta *= beta_growth every beta_every iterations (continuation).",
+     "minimum": 1,
+     "title": "Beta Growth",
+     "type": "number"
+    },
+    "beta_every": {
+     "default": 20,
+     "minimum": 1,
+     "title": "Beta Every",
+     "type": "integer"
+    },
+    "lengthscale_weight": {
+     "default": 100.0,
+     "description": "Penalty weight of the min-feature constraints.",
+     "minimum": 0,
+     "title": "Lengthscale Weight",
+     "type": "number"
+    },
+    "lengthscale_from_beta": {
+     "default": 16.0,
+     "description": "Apply min-feature penalties once beta >= this.",
+     "minimum": 0,
+     "title": "Lengthscale From Beta",
+     "type": "number"
+    },
+    "ftol": {
+     "default": 0.0,
+     "description": "Stop when the relative improvement over 10 iterations is below this.",
+     "minimum": 0,
+     "title": "Ftol",
+     "type": "number"
+    }
+   },
+   "title": "OptimizerSettings",
+   "type": "object"
+  },
+  "Outputs": {
+   "additionalProperties": false,
+   "properties": {
+    "cross_sections": {
+     "default": true,
+     "title": "Cross Sections",
+     "type": "boolean"
+    },
+    "near_field": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/NearFieldRequest"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "far_field": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/FarFieldRequest"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "title": "Outputs",
+   "type": "object"
+  },
+  "Particle": {
+   "additionalProperties": false,
+   "properties": {
+    "shape": {
+     "discriminator": {
+      "mapping": {
+       "cylinder": "#/$defs/Cylinder",
+       "layered_sphere": "#/$defs/LayeredSphere",
+       "sphere": "#/$defs/Sphere",
+       "spheroid": "#/$defs/Spheroid"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/Sphere"
+      },
+      {
+       "$ref": "#/$defs/Spheroid"
+      },
+      {
+       "$ref": "#/$defs/Cylinder"
+      },
+      {
+       "$ref": "#/$defs/LayeredSphere"
+      }
+     ],
+     "title": "Shape"
+    },
+    "material": {
+     "description": "Particle material (the core for layered spheres).",
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Material"
+    },
+    "position_nm": {
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Position Nm",
+     "type": "array"
+    }
+   },
+   "required": [
+    "shape",
+    "material"
+   ],
+   "title": "Particle",
+   "type": "object"
+  },
+  "PatternedLayer": {
+   "additionalProperties": false,
+   "properties": {
+    "thickness_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Thickness Nm",
+     "type": "number"
+    },
+    "background": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Background"
+    },
+    "shapes": {
+     "description": "Inclusions in one unit cell (xy).",
+     "items": {
+      "$ref": "#/$defs/Structure2D"
+     },
+     "title": "Shapes",
+     "type": "array"
+    }
+   },
+   "required": [
+    "thickness_nm",
+    "background"
+   ],
+   "title": "PatternedLayer",
+   "type": "object"
+  },
+  "PeriodicProblem": {
+   "additionalProperties": false,
+   "description": "A 1D/2D-periodic stack of patterned layers under plane-wave illumination.",
+   "properties": {
+    "kind": {
+     "const": "periodic",
+     "default": "periodic",
+     "title": "Kind",
+     "type": "string"
+    },
+    "lattice_a1_nm": {
+     "maxItems": 2,
+     "minItems": 2,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Lattice A1 Nm",
+     "type": "array"
+    },
+    "lattice_a2_nm": {
+     "anyOf": [
+      {
+       "maxItems": 2,
+       "minItems": 2,
+       "prefixItems": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "number"
+        }
+       ],
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "None for 1D gratings: periodic along a1, invariant perpendicular to it; shapes are sampled along the line through the origin in the a1 direction.",
+     "title": "Lattice A2 Nm"
+    },
+    "superstrate": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Superstrate"
+    },
+    "layers": {
+     "description": "From the superstrate side to the substrate side.",
+     "items": {
+      "$ref": "#/$defs/PatternedLayer"
+     },
+     "minItems": 1,
+     "title": "Layers",
+     "type": "array"
+    },
+    "substrate": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Substrate"
+    },
+    "wavelengths": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      {
+       "$ref": "#/$defs/WavelengthRange"
+      }
+     ],
+     "title": "Wavelengths"
+    },
+    "incidence": {
+     "$ref": "#/$defs/Incidence",
+     "default": {
+      "theta_deg": 0.0,
+      "phi_deg": 0.0,
+      "polarizations": [
+       "s",
+       "p"
+      ]
+     }
+    },
+    "options": {
+     "additionalProperties": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "title": "Options",
+     "type": "object"
+    }
+   },
+   "required": [
+    "lattice_a1_nm",
+    "superstrate",
+    "layers",
+    "substrate",
+    "wavelengths"
+   ],
+   "title": "PeriodicProblem",
+   "type": "object"
+  },
+  "PlaneWave": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "plane_wave",
+     "default": "plane_wave",
+     "title": "Kind",
+     "type": "string"
+    },
+    "direction": {
+     "default": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "description": "Propagation direction.",
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Direction",
+     "type": "array"
+    },
+    "polarization": {
+     "default": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "description": "Real E-field direction.",
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Polarization",
+     "type": "array"
+    }
+   },
+   "title": "PlaneWave",
+   "type": "object"
+  },
+  "Polygon": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "polygon",
+     "default": "polygon",
+     "title": "Kind",
+     "type": "string"
+    },
+    "vertices_nm": {
+     "items": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "number"
+       }
+      ],
+      "type": "array"
+     },
+     "minItems": 3,
+     "title": "Vertices Nm",
+     "type": "array"
+    }
+   },
+   "required": [
+    "vertices_nm"
+   ],
+   "title": "Polygon",
+   "type": "object"
+  },
+  "Port": {
+   "additionalProperties": false,
+   "properties": {
+    "name": {
+     "title": "Name",
+     "type": "string"
+    },
+    "center_nm": {
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Center Nm",
+     "type": "array"
+    },
+    "size_nm": {
+     "description": "Zero along the port normal. In 2D devices z may also be zero, e.g. (0, w, 0) for an x-normal port.",
+     "maxItems": 3,
+     "minItems": 3,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Size Nm",
+     "type": "array"
+    },
+    "direction": {
+     "description": "Direction of propagation *into* the device along the normal.",
+     "enum": [
+      "+",
+      "-"
+     ],
+     "title": "Direction",
+     "type": "string"
+    },
+    "num_modes": {
+     "default": 1,
+     "minimum": 1,
+     "title": "Num Modes",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "name",
+    "center_nm",
+    "size_nm",
+    "direction"
+   ],
+   "title": "Port",
+   "type": "object"
+  },
+  "Prism": {
+   "additionalProperties": false,
+   "description": "A 2D profile in the xy plane extruded from z_min to z_max (with optional sidewall angle).",
+   "properties": {
+    "kind": {
+     "const": "prism",
+     "default": "prism",
+     "title": "Kind",
+     "type": "string"
+    },
+    "profile": {
+     "discriminator": {
+      "mapping": {
+       "circle": "#/$defs/Circle",
+       "ellipse": "#/$defs/Ellipse",
+       "polygon": "#/$defs/Polygon",
+       "rectangle": "#/$defs/Rectangle"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/Rectangle"
+      },
+      {
+       "$ref": "#/$defs/Circle"
+      },
+      {
+       "$ref": "#/$defs/Ellipse"
+      },
+      {
+       "$ref": "#/$defs/Polygon"
+      }
+     ],
+     "title": "Profile"
+    },
+    "z_min_nm": {
+     "title": "Z Min Nm",
+     "type": "number"
+    },
+    "z_max_nm": {
+     "title": "Z Max Nm",
+     "type": "number"
+    },
+    "sidewall_angle_deg": {
+     "default": 0.0,
+     "description": "0 = vertical; positive = narrower at the top.",
+     "title": "Sidewall Angle Deg",
+     "type": "number"
+    }
+   },
+   "required": [
+    "profile",
+    "z_min_nm",
+    "z_max_nm"
+   ],
+   "title": "Prism",
+   "type": "object"
+  },
+  "Rectangle": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "rectangle",
+     "default": "rectangle",
+     "title": "Kind",
+     "type": "string"
+    },
+    "center_nm": {
+     "default": [
+      0.0,
+      0.0
+     ],
+     "maxItems": 2,
+     "minItems": 2,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Center Nm",
+     "type": "array"
+    },
+    "size_nm": {
+     "maxItems": 2,
+     "minItems": 2,
+     "prefixItems": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "number"
+      }
+     ],
+     "title": "Size Nm",
+     "type": "array"
+    }
+   },
+   "required": [
+    "size_nm"
+   ],
+   "title": "Rectangle",
+   "type": "object"
+  },
+  "SParameterTerm": {
+   "additionalProperties": false,
+   "description": "|S[out <- in]|^2 (power) of port modes, e.g. transmission o1 -> o2 or reflection o1 -> o1.",
+   "properties": {
+    "weight": {
+     "default": 1.0,
+     "exclusiveMinimum": 0,
+     "title": "Weight",
+     "type": "number"
+    },
+    "goal": {
+     "default": "maximize",
+     "enum": [
+      "maximize",
+      "minimize",
+      "target"
+     ],
+     "title": "Goal",
+     "type": "string"
+    },
+    "target": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "For goal='target': penalise (value - target)^2.",
+     "title": "Target"
+    },
+    "aggregate": {
+     "default": "mean",
+     "description": "Over wavelengths. 'min' (worst-case for maximize) uses a smooth minimum.",
+     "enum": [
+      "mean",
+      "min",
+      "max"
+     ],
+     "title": "Aggregate",
+     "type": "string"
+    },
+    "wavelength_weights": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Per-wavelength weights for 'mean'.",
+     "title": "Wavelength Weights"
+    },
+    "kind": {
+     "const": "sparameter",
+     "default": "sparameter",
+     "title": "Kind",
+     "type": "string"
+    },
+    "out_port": {
+     "title": "Out Port",
+     "type": "string"
+    },
+    "in_port": {
+     "title": "In Port",
+     "type": "string"
+    },
+    "out_mode": {
+     "default": 0,
+     "minimum": 0,
+     "title": "Out Mode",
+     "type": "integer"
+    },
+    "in_mode": {
+     "default": 0,
+     "minimum": 0,
+     "title": "In Mode",
+     "type": "integer"
+    },
+    "quantity": {
+     "default": "power",
+     "enum": [
+      "power",
+      "real",
+      "imag"
+     ],
+     "title": "Quantity",
+     "type": "string"
+    }
+   },
+   "required": [
+    "out_port",
+    "in_port"
+   ],
+   "title": "SParameterTerm",
+   "type": "object"
+  },
+  "Shell": {
+   "additionalProperties": false,
+   "properties": {
+    "thickness_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Thickness Nm",
+     "type": "number"
+    },
+    "material": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Material"
+    }
+   },
+   "required": [
+    "thickness_nm",
+    "material"
+   ],
+   "title": "Shell",
+   "type": "object"
+  },
+  "Simulation": {
+   "additionalProperties": false,
+   "description": "A complete scattering problem. Serialisable to/from JSON.",
+   "properties": {
+    "kind": {
+     "const": "scattering",
+     "default": "scattering",
+     "title": "Kind",
+     "type": "string"
+    },
+    "schema_version": {
+     "const": "0.1",
+     "default": "0.1",
+     "title": "Schema Version",
+     "type": "string"
+    },
+    "particles": {
+     "items": {
+      "$ref": "#/$defs/Particle"
+     },
+     "minItems": 1,
+     "title": "Particles",
+     "type": "array"
+    },
+    "medium_index": {
+     "default": 1.0,
+     "description": "Real refractive index of the host medium.",
+     "exclusiveMinimum": 0,
+     "title": "Medium Index",
+     "type": "number"
+    },
+    "illumination": {
+     "$ref": "#/$defs/PlaneWave",
+     "default": {
+      "kind": "plane_wave",
+      "direction": [
+       0.0,
+       0.0,
+       1.0
+      ],
+      "polarization": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     }
+    },
+    "wavelengths": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      {
+       "$ref": "#/$defs/WavelengthRange"
+      }
+     ],
+     "description": "Vacuum wavelengths in nm.",
+     "title": "Wavelengths"
+    },
+    "substrate": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Substrate"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Optional half-space below the particles."
+    },
+    "orientation_average": {
+     "default": false,
+     "description": "Average cross sections over all particle orientations.",
+     "title": "Orientation Average",
+     "type": "boolean"
+    },
+    "outputs": {
+     "$ref": "#/$defs/Outputs",
+     "default": {
+      "cross_sections": true,
+      "near_field": null,
+      "far_field": null
+     }
+    },
+    "options": {
+     "additionalProperties": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "description": "Solver options keyed by method or backend name, e.g. {'dda': {'dipoles_per_diameter': 20}}.",
+     "title": "Options",
+     "type": "object"
+    }
+   },
+   "required": [
+    "particles",
+    "wavelengths"
+   ],
+   "title": "Simulation",
+   "type": "object"
+  },
+  "Sphere": {
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "const": "sphere",
+     "default": "sphere",
+     "title": "Kind",
+     "type": "string"
+    },
+    "radius_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Radius Nm",
+     "type": "number"
+    }
+   },
+   "required": [
+    "radius_nm"
+   ],
+   "title": "Sphere",
+   "type": "object"
+  },
+  "Spheroid": {
+   "additionalProperties": false,
+   "description": "Spheroid with symmetry axis along z.",
+   "properties": {
+    "kind": {
+     "const": "spheroid",
+     "default": "spheroid",
+     "title": "Kind",
+     "type": "string"
+    },
+    "semi_axis_xy_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Semi Axis Xy Nm",
+     "type": "number"
+    },
+    "semi_axis_z_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Semi Axis Z Nm",
+     "type": "number"
+    }
+   },
+   "required": [
+    "semi_axis_xy_nm",
+    "semi_axis_z_nm"
+   ],
+   "title": "Spheroid",
+   "type": "object"
+  },
+  "Structure": {
+   "additionalProperties": false,
+   "description": "A material region. Later structures override earlier ones where they overlap.",
+   "properties": {
+    "name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Name"
+    },
+    "geometry": {
+     "discriminator": {
+      "mapping": {
+       "ball": "#/$defs/Ball",
+       "box": "#/$defs/Box",
+       "prism": "#/$defs/Prism"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/Prism"
+      },
+      {
+       "$ref": "#/$defs/Box"
+      },
+      {
+       "$ref": "#/$defs/Ball"
+      }
+     ],
+     "title": "Geometry"
+    },
+    "material": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Material"
+    }
+   },
+   "required": [
+    "geometry",
+    "material"
+   ],
+   "title": "Structure",
+   "type": "object"
+  },
+  "Structure2D": {
+   "additionalProperties": false,
+   "properties": {
+    "name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Name"
+    },
+    "profile": {
+     "discriminator": {
+      "mapping": {
+       "circle": "#/$defs/Circle",
+       "ellipse": "#/$defs/Ellipse",
+       "polygon": "#/$defs/Polygon",
+       "rectangle": "#/$defs/Rectangle"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/Rectangle"
+      },
+      {
+       "$ref": "#/$defs/Circle"
+      },
+      {
+       "$ref": "#/$defs/Ellipse"
+      },
+      {
+       "$ref": "#/$defs/Polygon"
+      }
+     ],
+     "title": "Profile"
+    },
+    "material": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Material"
+    }
+   },
+   "required": [
+    "profile",
+    "material"
+   ],
+   "title": "Structure2D",
+   "type": "object"
+  },
+  "Substrate": {
+   "additionalProperties": false,
+   "description": "Semi-infinite half-space z < interface_z_nm with the given material.",
+   "properties": {
+    "material": {
+     "discriminator": {
+      "mapping": {
+       "constant_index": "#/$defs/ConstantIndex",
+       "constant_permittivity": "#/$defs/ConstantPermittivity",
+       "drude": "#/$defs/Drude",
+       "drude_lorentz": "#/$defs/DrudeLorentz",
+       "library": "#/$defs/LibraryMaterial",
+       "tabulated": "#/$defs/Tabulated"
+      },
+      "propertyName": "kind"
+     },
+     "oneOf": [
+      {
+       "$ref": "#/$defs/ConstantIndex"
+      },
+      {
+       "$ref": "#/$defs/ConstantPermittivity"
+      },
+      {
+       "$ref": "#/$defs/Drude"
+      },
+      {
+       "$ref": "#/$defs/DrudeLorentz"
+      },
+      {
+       "$ref": "#/$defs/Tabulated"
+      },
+      {
+       "$ref": "#/$defs/LibraryMaterial"
+      }
+     ],
+     "title": "Material"
+    },
+    "interface_z_nm": {
+     "default": 0.0,
+     "title": "Interface Z Nm",
+     "type": "number"
+    }
+   },
+   "required": [
+    "material"
+   ],
+   "title": "Substrate",
+   "type": "object"
+  },
+  "Tabulated": {
+   "additionalProperties": false,
+   "description": "Tabulated n, k data, linearly interpolated (no extrapolation).",
+   "properties": {
+    "kind": {
+     "const": "tabulated",
+     "default": "tabulated",
+     "title": "Kind",
+     "type": "string"
+    },
+    "wavelength_nm": {
+     "items": {
+      "type": "number"
+     },
+     "title": "Wavelength Nm",
+     "type": "array"
+    },
+    "n_real": {
+     "items": {
+      "type": "number"
+     },
+     "title": "N Real",
+     "type": "array"
+    },
+    "n_imag": {
+     "items": {
+      "type": "number"
+     },
+     "title": "N Imag",
+     "type": "array"
+    },
+    "source": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Citation / provenance of the data.",
+     "title": "Source"
+    }
+   },
+   "required": [
+    "wavelength_nm",
+    "n_real",
+    "n_imag"
+   ],
+   "title": "Tabulated",
+   "type": "object"
+  },
+  "WavelengthRange": {
+   "additionalProperties": false,
+   "properties": {
+    "start_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Start Nm",
+     "type": "number"
+    },
+    "stop_nm": {
+     "exclusiveMinimum": 0,
+     "title": "Stop Nm",
+     "type": "number"
+    },
+    "num": {
+     "minimum": 1,
+     "title": "Num",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "start_nm",
+    "stop_nm",
+    "num"
+   ],
+   "title": "WavelengthRange",
+   "type": "object"
+  }
+ },
+ "properties": {
+  "problem": {
+   "discriminator": {
+    "mapping": {
+     "bands": "#/$defs/BandProblem",
+     "circuit": "#/$defs/CircuitProblem",
+     "device": "#/$defs/DeviceProblem",
+     "layer_stack": "#/$defs/LayerStackProblem",
+     "mode": "#/$defs/ModeProblem",
+     "optimization": "#/$defs/OptimizationProblem",
+     "periodic": "#/$defs/PeriodicProblem",
+     "scattering": "#/$defs/Simulation"
+    },
+    "propertyName": "kind"
+   },
+   "oneOf": [
+    {
+     "$ref": "#/$defs/Simulation"
+    },
+    {
+     "$ref": "#/$defs/LayerStackProblem"
+    },
+    {
+     "$ref": "#/$defs/PeriodicProblem"
+    },
+    {
+     "$ref": "#/$defs/ModeProblem"
+    },
+    {
+     "$ref": "#/$defs/DeviceProblem"
+    },
+    {
+     "$ref": "#/$defs/BandProblem"
+    },
+    {
+     "$ref": "#/$defs/CircuitProblem"
+    },
+    {
+     "$ref": "#/$defs/OptimizationProblem"
+    }
+   ],
+   "title": "Problem"
+  }
+ },
+ "required": [
+  "problem"
+ ],
+ "title": "_Envelope",
+ "type": "object"
+}

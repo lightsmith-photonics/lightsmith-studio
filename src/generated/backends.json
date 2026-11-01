@@ -1,0 +1,1314 @@
+[
+ {
+  "name": "lightsmith-circuit",
+  "method": "circuit",
+  "problem_kinds": [
+   "circuit"
+  ],
+  "license": "MIT",
+  "gpu": true,
+  "differentiable": true,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "S-matrix interconnection S_ee + S_ei C (I - S_ii C)^-1 S_ie; pairwise reduction as scikit-rf's innerconnect (Arsenovic et al., IEEE Microwave Magazine 23, 98 (2022))",
+  "options_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "algorithm": {
+     "default": "auto",
+     "description": "dense: one batched (I - S C) solve; reduce: pairwise sub-circuit reduction (better for very large netlists); auto picks by size.",
+     "enum": [
+      "auto",
+      "dense",
+      "reduce"
+     ],
+     "title": "Algorithm",
+     "type": "string"
+    },
+    "precision": {
+     "default": "double",
+     "enum": [
+      "double",
+      "single"
+     ],
+     "title": "Precision",
+     "type": "string"
+    },
+    "unconnected": {
+     "default": "error",
+     "description": "Ports that are neither connected nor external: error, or treat as matched ends.",
+     "enum": [
+      "error",
+      "ignore"
+     ],
+     "title": "Unconnected",
+     "type": "string"
+    },
+    "base_dir": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Directory that relative 'sparams:<path>' files are read from.",
+     "title": "Base Dir"
+    },
+    "passivity_tol": {
+     "default": 1e-06,
+     "description": "Warn when the largest singular value of S exceeds 1 + tol.",
+     "minimum": 0,
+     "title": "Passivity Tol",
+     "type": "number"
+    }
+   },
+   "title": "CircuitOptions",
+   "type": "object"
+  }
+ },
+ {
+  "name": "lightsmith-dda",
+  "method": "dda",
+  "problem_kinds": [
+   "scattering"
+  ],
+  "license": "MIT",
+  "gpu": true,
+  "differentiable": false,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "Draine & Flatau, JOSA A 11, 1491 (1994); Goodman, Draine & Flatau, Opt. Lett. 16, 1198 (1991)",
+  "options_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "dipoles_per_diameter": {
+     "anyOf": [
+      {
+       "minimum": 2,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Lattice sites across the smallest particle's largest dimension. Default: max(16, enough for |m| k d <= 0.5).",
+     "title": "Dipoles Per Diameter"
+    },
+    "polarizability": {
+     "default": "ldr",
+     "description": "LDR, or Clausius-Mossotti + radiative reaction.",
+     "enum": [
+      "ldr",
+      "cm_rr"
+     ],
+     "title": "Polarizability",
+     "type": "string"
+    },
+    "discretization": {
+     "default": "center",
+     "description": "center: classic staircase with volume rescaling. weighted (experimental): boundary sites mix full-site polarizabilities by volume fraction.",
+     "enum": [
+      "center",
+      "weighted"
+     ],
+     "title": "Discretization",
+     "type": "string"
+    },
+    "precision": {
+     "default": "auto",
+     "description": "auto = double on CPU, single on GPU.",
+     "enum": [
+      "auto",
+      "single",
+      "double"
+     ],
+     "title": "Precision",
+     "type": "string"
+    },
+    "tol": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Relative residual target. Default 1e-8 double, 1e-5 single.",
+     "title": "Tol"
+    },
+    "max_iter": {
+     "default": 10000,
+     "minimum": 1,
+     "title": "Max Iter",
+     "type": "integer"
+    },
+    "max_dipoles": {
+     "default": 5000000,
+     "description": "Refuse problems larger than this.",
+     "minimum": 1,
+     "title": "Max Dipoles",
+     "type": "integer"
+    },
+    "orientations": {
+     "default": 32,
+     "description": "Incidence directions (x2 polarizations) for orientation_average.",
+     "minimum": 1,
+     "title": "Orientations",
+     "type": "integer"
+    },
+    "extrapolate": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "integer"
+       },
+       "minItems": 2,
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "dipoles_per_diameter values to extrapolate to zero dipole size, e.g. [12, 16, 24]. Quadratic in 1/npd for 3+ values, linear for 2. Experimental: staircase noise makes it unreliable for metal spheres.",
+     "title": "Extrapolate"
+    }
+   },
+   "title": "DDAOptions",
+   "type": "object"
+  }
+ },
+ {
+  "name": "lightsmith-eme",
+  "method": "eme",
+  "problem_kinds": [
+   "device"
+  ],
+  "license": "MIT",
+  "gpu": false,
+  "differentiable": false,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "Bienstman & Baets, Opt. Quantum Electron. 33, 327 (2001); Gallagher & Felici, Proc. SPIE 4987 (2003)",
+  "options_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "num_modes": {
+     "anyOf": [
+      {
+       "minimum": 1,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Modes per cell. Default 30 in 2D, 10 in 3D.",
+     "title": "Num Modes"
+    },
+    "grid_spacing_nm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "maxItems": 2,
+       "minItems": 2,
+       "prefixItems": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "number"
+        }
+       ],
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Cross-section grid step. Default from points_per_wavelength and cells_per_feature.",
+     "title": "Grid Spacing Nm"
+    },
+    "points_per_wavelength": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Default 40 in 2D, 15 in 3D.",
+     "title": "Points Per Wavelength"
+    },
+    "cells_per_feature": {
+     "default": 6,
+     "exclusiveMinimum": 0,
+     "title": "Cells Per Feature",
+     "type": "number"
+    },
+    "subpixel": {
+     "default": "anisotropic",
+     "enum": [
+      "anisotropic",
+      "volume",
+      "none"
+     ],
+     "title": "Subpixel",
+     "type": "string"
+    },
+    "subsamples": {
+     "default": 32,
+     "minimum": 1,
+     "title": "Subsamples",
+     "type": "integer"
+    },
+    "boundary": {
+     "default": "pec",
+     "description": "Cross-section walls (PEC box modes, or PML).",
+     "enum": [
+      "pec",
+      "pml"
+     ],
+     "title": "Boundary",
+     "type": "string"
+    },
+    "pml_cells": {
+     "default": 10,
+     "minimum": 1,
+     "title": "Pml Cells",
+     "type": "integer"
+    },
+    "pml_reflection": {
+     "default": 1e-06,
+     "exclusiveMaximum": 1,
+     "exclusiveMinimum": 0,
+     "title": "Pml Reflection",
+     "type": "number"
+    },
+    "polarization": {
+     "default": "auto",
+     "description": "auto: 'te' (in-plane E) in 2D, 'any' in 3D. In 3D, 'te'/'tm' filter by te_fraction (inexact: the basis loses completeness).",
+     "enum": [
+      "auto",
+      "te",
+      "tm",
+      "any"
+     ],
+     "title": "Polarization",
+     "type": "string"
+    },
+    "taper_cells": {
+     "anyOf": [
+      {
+       "minimum": 1,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Cells per continuously varying segment (tapers, curves). Default: enough for the outline to move ~3 grid cells per step, clipped to 10-60.",
+     "title": "Taper Cells"
+    },
+    "max_cell_length_nm": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Also split segments longer than this.",
+     "title": "Max Cell Length Nm"
+    },
+    "max_grid_cells": {
+     "default": 400000,
+     "minimum": 1,
+     "title": "Max Grid Cells",
+     "type": "integer"
+    },
+    "cache": {
+     "default": true,
+     "description": "Reuse cell modes across solves (byte-limited LRU, 256 MB).",
+     "title": "Cache",
+     "type": "boolean"
+    }
+   },
+   "title": "EMEOptions",
+   "type": "object"
+  }
+ },
+ {
+  "name": "lightsmith-fde",
+  "method": "fde",
+  "problem_kinds": [
+   "mode"
+  ],
+  "license": "MIT",
+  "gpu": false,
+  "differentiable": false,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "Zhu & Brown, Opt. Express 10, 853 (2002); Fallahkhair, Li & Murphy, J. Lightwave Technol. 26, 1423 (2008)",
+  "options_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "grid_spacing_nm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "maxItems": 2,
+       "minItems": 2,
+       "prefixItems": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "number"
+        }
+       ],
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Grid step (x, y). Default: points_per_wavelength in the densest material and cells_per_feature across the smallest structure.",
+     "title": "Grid Spacing Nm"
+    },
+    "points_per_wavelength": {
+     "default": 20,
+     "exclusiveMinimum": 0,
+     "title": "Points Per Wavelength",
+     "type": "number"
+    },
+    "cells_per_feature": {
+     "default": 8,
+     "exclusiveMinimum": 0,
+     "title": "Cells Per Feature",
+     "type": "number"
+    },
+    "subpixel": {
+     "default": "anisotropic",
+     "description": "anisotropic: harmonic mean along each E component, arithmetic across (best for interfaces); volume: fill-fraction average; none: staircase.",
+     "enum": [
+      "anisotropic",
+      "volume",
+      "none"
+     ],
+     "title": "Subpixel",
+     "type": "string"
+    },
+    "subsamples": {
+     "default": 32,
+     "description": "Samples per axis in cells cut by an interface (16x as many along x for slabs).",
+     "minimum": 1,
+     "title": "Subsamples",
+     "type": "integer"
+    },
+    "boundary": {
+     "default": "auto",
+     "description": "auto = PML for bends, PEC otherwise.",
+     "enum": [
+      "auto",
+      "pec",
+      "pml"
+     ],
+     "title": "Boundary",
+     "type": "string"
+    },
+    "pml_cells": {
+     "default": 12,
+     "minimum": 1,
+     "title": "Pml Cells",
+     "type": "integer"
+    },
+    "pml_reflection": {
+     "default": 1e-06,
+     "description": "Normal-incidence reflection the PML grading targets.",
+     "exclusiveMaximum": 1,
+     "exclusiveMinimum": 0,
+     "title": "Pml Reflection",
+     "type": "number"
+    },
+    "symmetry": {
+     "default": [
+      "none",
+      "none"
+     ],
+     "description": "Mirror planes x = window centre and y = window centre. 'pec' zeroes tangential E on the plane (e.g. x-plane for TE0 of a strip, whose Ex is even), 'pmc' zeroes tangential H.",
+     "maxItems": 2,
+     "minItems": 2,
+     "prefixItems": [
+      {
+       "enum": [
+        "none",
+        "pec",
+        "pmc"
+       ],
+       "type": "string"
+      },
+      {
+       "enum": [
+        "none",
+        "pec",
+        "pmc"
+       ],
+       "type": "string"
+      }
+     ],
+     "title": "Symmetry",
+     "type": "array"
+    },
+    "polarization": {
+     "default": "any",
+     "description": "Keep only modes with te_fraction > 0.5 ('te', dominant Ex) or < 0.5 ('tm').",
+     "enum": [
+      "any",
+      "te",
+      "tm"
+     ],
+     "title": "Polarization",
+     "type": "string"
+    },
+    "group_index": {
+     "default": "auto",
+     "description": "auto: perturbation formula without PML, wavelength finite difference with PML.",
+     "enum": [
+      "auto",
+      "perturbation",
+      "finite_difference",
+      "none"
+     ],
+     "title": "Group Index",
+     "type": "string"
+    },
+    "track_modes": {
+     "default": false,
+     "description": "Order modes at each wavelength by overlap with the previous wavelength instead of by neff.",
+     "title": "Track Modes",
+     "type": "boolean"
+    },
+    "bend_reference_x_nm": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "x where the bend radius is measured (centre of curvature at this x minus R). Default: the window centre.",
+     "title": "Bend Reference X Nm"
+    },
+    "max_cells": {
+     "default": 1000000,
+     "description": "Refuse grids larger than this.",
+     "minimum": 1,
+     "title": "Max Cells",
+     "type": "integer"
+    }
+   },
+   "title": "FDEOptions",
+   "type": "object"
+  }
+ },
+ {
+  "name": "lightsmith-fdfd",
+  "method": "fdfd",
+  "problem_kinds": [
+   "device"
+  ],
+  "license": "MIT",
+  "gpu": true,
+  "differentiable": true,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "Shin & Fan, J. Comput. Phys. 231, 3406 (2012); Hughes et al., ACS Photonics 6, 3010 (2019)",
+  "options_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "polarization": {
+     "default": "te",
+     "description": "2D polarization: 'te' = E in the xy plane (Hz), the usual choice for planar photonics; 'tm' = E along z (Ez).",
+     "enum": [
+      "te",
+      "tm"
+     ],
+     "title": "Polarization",
+     "type": "string"
+    },
+    "dl_nm": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Grid cell size. Default: shortest wavelength / (cells_per_wavelength * highest refractive index).",
+     "title": "Dl Nm"
+    },
+    "cells_per_wavelength": {
+     "default": 20.0,
+     "description": "Cells per wavelength in the densest material.",
+     "exclusiveMinimum": 4,
+     "title": "Cells Per Wavelength",
+     "type": "number"
+    },
+    "pml_cells": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "maxItems": 2,
+       "minItems": 2,
+       "prefixItems": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "integer"
+        }
+       ],
+       "type": "array"
+      }
+     ],
+     "default": 16,
+     "description": "PML thickness in cells, added outside the domain; a pair gives (x, y). 0 = PEC/PMC wall on that axis.",
+     "title": "Pml Cells"
+    },
+    "pml_reflection": {
+     "default": 1e-08,
+     "description": "Target normal-incidence PML reflection.",
+     "exclusiveMaximum": 1,
+     "exclusiveMinimum": 0,
+     "title": "Pml Reflection",
+     "type": "number"
+    },
+    "solver": {
+     "default": "auto",
+     "description": "auto = SciPy SuperLU on CPU, torch block-tridiagonal LU on GPU.",
+     "enum": [
+      "auto",
+      "scipy",
+      "block"
+     ],
+     "title": "Solver",
+     "type": "string"
+    },
+    "precision": {
+     "default": "double",
+     "description": "Factorisation precision (block solver).",
+     "enum": [
+      "double",
+      "single"
+     ],
+     "title": "Precision",
+     "type": "string"
+    },
+    "subsamples": {
+     "default": 4,
+     "description": "Supersampling per axis for subpixel permittivity.",
+     "maximum": 16,
+     "minimum": 1,
+     "title": "Subsamples",
+     "type": "integer"
+    },
+    "max_cells": {
+     "default": 4000000,
+     "description": "Refuse grids larger than this.",
+     "minimum": 1,
+     "title": "Max Cells",
+     "type": "integer"
+    }
+   },
+   "title": "FDFDOptions",
+   "type": "object"
+  }
+ },
+ {
+  "name": "lightsmith-inverse",
+  "method": "inverse",
+  "problem_kinds": [
+   "optimization"
+  ],
+  "license": "MIT",
+  "gpu": true,
+  "differentiable": false,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "Hammond et al., Opt. Express 29, 23916 (2021); Svanberg, SIAM J. Optim. 12, 555 (2002); Molesky et al., Nat. Photonics 12, 659 (2018)",
+  "options_schema": null
+ },
+ {
+  "name": "lightsmith-fdtd",
+  "method": "fdtd",
+  "problem_kinds": [
+   "scattering",
+   "periodic",
+   "layer_stack"
+  ],
+  "license": "MIT",
+  "gpu": true,
+  "differentiable": false,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "Taflove & Hagness, Computational Electrodynamics (2005); Roden & Gedney, MOTL 27, 334 (2000); Oskooi et al., CPC 181, 687 (2010)",
+  "options_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "spacing_nm": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Yee cell size. Overrides cells_per_wavelength and cells_per_radius.",
+     "title": "Spacing Nm"
+    },
+    "cells_per_wavelength": {
+     "default": 20.0,
+     "description": "Cells per shortest wavelength inside the optically densest material (|n|).",
+     "minimum": 6,
+     "title": "Cells Per Wavelength",
+     "type": "number"
+    },
+    "cells_per_radius": {
+     "anyOf": [
+      {
+       "minimum": 2,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Minimum cells across the smallest particle half-extent. Default 10, or 20 when a material has Re(eps) < 0 in the band (plasmonic; ~10% peak-height error at 20).",
+     "title": "Cells Per Radius"
+    },
+    "pml_cells": {
+     "default": 10,
+     "description": "CPML thickness in cells.",
+     "minimum": 4,
+     "title": "Pml Cells",
+     "type": "integer"
+    },
+    "pml_kappa": {
+     "default": 1.0,
+     "description": "CPML kappa_max (>1 damps evanescent fields faster).",
+     "minimum": 1,
+     "title": "Pml Kappa",
+     "type": "number"
+    },
+    "padding_nm": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Gap between the particles' bounding box (periodic: the stack) and the TFSF box (plane). Default 4 cells.",
+     "title": "Padding Nm"
+    },
+    "pml_gap_nm": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Gap between the flux monitors and the CPML. Default 4 cells (scattering); periodic: 3 decay lengths of the slowest evanescent diffraction order, 0.25-1.5 wavelengths.",
+     "title": "Pml Gap Nm"
+    },
+    "courant": {
+     "default": 0.95,
+     "description": "Time step as a fraction of the 3D Courant limit.",
+     "exclusiveMinimum": 0,
+     "maximum": 1,
+     "title": "Courant",
+     "type": "number"
+    },
+    "run_time_fs": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Fixed simulated time in fs. Disables the decay shutoff.",
+     "title": "Run Time Fs"
+    },
+    "decay_by": {
+     "default": 1e-05,
+     "description": "Stop when the field energy on the flux monitors has fallen below this fraction of its peak (after the pulse has passed).",
+     "exclusiveMaximum": 1,
+     "exclusiveMinimum": 0,
+     "title": "Decay By",
+     "type": "number"
+    },
+    "max_time_fs": {
+     "default": 2000.0,
+     "description": "Hard cap on simulated time in fs (high-Q resonances need ps).",
+     "exclusiveMinimum": 0,
+     "title": "Max Time Fs",
+     "type": "number"
+    },
+    "precision": {
+     "default": "auto",
+     "description": "auto = single on GPU, double on CPU.",
+     "enum": [
+      "auto",
+      "single",
+      "double"
+     ],
+     "title": "Precision",
+     "type": "string"
+    },
+    "subpixel": {
+     "default": true,
+     "description": "Anisotropic subpixel smoothing at interfaces (dispersive too).",
+     "title": "Subpixel",
+     "type": "boolean"
+    },
+    "subpixel_samples": {
+     "default": 8,
+     "description": "Supersamples per axis for interface cells.",
+     "maximum": 24,
+     "minimum": 2,
+     "title": "Subpixel Samples",
+     "type": "integer"
+    },
+    "dft_stride": {
+     "anyOf": [
+      {
+       "minimum": 1,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Time steps between DFT samples. Default: from the source bandwidth (aliasing-safe).",
+     "title": "Dft Stride"
+    },
+    "cuda_graphs": {
+     "default": true,
+     "description": "Replay time steps as CUDA graphs on PyTorch CUDA (much faster).",
+     "title": "Cuda Graphs",
+     "type": "boolean"
+    },
+    "max_cells": {
+     "default": 300000000,
+     "description": "Refuse grids larger than this.",
+     "minimum": 1,
+     "title": "Max Cells",
+     "type": "integer"
+    }
+   },
+   "title": "FDTDOptions",
+   "type": "object"
+  }
+ },
+ {
+  "name": "miepython",
+  "method": "mie",
+  "problem_kinds": [
+   "scattering"
+  ],
+  "license": "MIT",
+  "gpu": false,
+  "differentiable": false,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "S. Prahl, miepython, https://github.com/scottprahl/miepython",
+  "options_schema": null
+ },
+ {
+  "name": "lightsmith-mie",
+  "method": "mie",
+  "problem_kinds": [
+   "scattering"
+  ],
+  "license": "MIT",
+  "gpu": true,
+  "differentiable": false,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "Bohren & Huffman (1983); Yang, Appl. Opt. 42, 1710 (2003); Pena & Pal, Comput. Phys. Commun. 180, 2348 (2009)",
+  "options_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "precision": {
+     "default": "double",
+     "description": "Floating-point precision of the series. 'single' is typically ~1e-7 relative but degrades to ~1e-3 near zeros of psi_n(x); the series is memory-bound, so on GPUs it is no faster than double. Near fields always use double.",
+     "enum": [
+      "single",
+      "double"
+     ],
+     "title": "Precision",
+     "type": "string"
+    },
+    "n_max": {
+     "anyOf": [
+      {
+       "minimum": 1,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Number of multipole orders. Default: Wiscombe's rule (homogeneous) or Pena & Pal's (layered), per wavelength chunk.",
+     "title": "N Max"
+    },
+    "wavelength_chunk": {
+     "anyOf": [
+      {
+       "minimum": 1,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Wavelengths per vectorised batch. Default: as many as fit in ~1 GiB of work arrays.",
+     "title": "Wavelength Chunk"
+    }
+   },
+   "title": "MieOptions",
+   "type": "object"
+  }
+ },
+ {
+  "name": "lightsmith-pwe",
+  "method": "pwe",
+  "problem_kinds": [
+   "bands"
+  ],
+  "license": "MIT",
+  "gpu": true,
+  "differentiable": false,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "Ho, Chan & Soukoulis, PRL 65, 3152 (1990); Johnson & Joannopoulos, Opt. Express 8, 173 (2001); Farjadpour et al., Opt. Lett. 31, 2972 (2006)",
+  "options_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "solver": {
+     "default": "auto",
+     "description": "dense: Ho-Chan-Soukoulis matrices + batched eigh. lobpcg: matrix-free FFT operators with subpixel-smoothed eps. auto: dense for TM (matrix <= 2500), lobpcg for TE and 3D; setting only num_plane_waves forces dense, setting only resolution forces lobpcg.",
+     "enum": [
+      "auto",
+      "dense",
+      "lobpcg"
+     ],
+     "title": "Solver",
+     "type": "string"
+    },
+    "num_plane_waves": {
+     "anyOf": [
+      {
+       "minimum": 1,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Dense basis size (completed to a full |G| shell). Default 400 (2D) / 600 (3D) per unit-cell area/volume in a^d.",
+     "title": "Num Plane Waves"
+    },
+    "resolution": {
+     "anyOf": [
+      {
+       "minimum": 4,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "lobpcg grid points per lattice constant a (default 32 in 2D, 16 in 3D).",
+     "title": "Resolution"
+    },
+    "eps_fourier": {
+     "default": "auto",
+     "description": "Dense eps_hat: analytic shape transforms (needs non-overlapping inclusions) or a supersampled raster. auto = analytic when valid.",
+     "enum": [
+      "auto",
+      "analytic",
+      "raster"
+     ],
+     "title": "Eps Fourier",
+     "type": "string"
+    },
+    "subsamples": {
+     "anyOf": [
+      {
+       "minimum": 1,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Raster supersampling per axis (default 4 in 2D, 2 in 3D).",
+     "title": "Subsamples"
+    },
+    "reference_wavelength_nm": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Vacuum wavelength at which materials are evaluated. Needed for dispersive materials (default 2a, i.e. a/lambda = 0.5, with a warning).",
+     "title": "Reference Wavelength Nm"
+    },
+    "precision": {
+     "default": "auto",
+     "description": "auto = double, except single for the dense solver on a GPU (~1e-5 in a/lambda).",
+     "enum": [
+      "auto",
+      "single",
+      "double"
+     ],
+     "title": "Precision",
+     "type": "string"
+    },
+    "tol": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "LOBPCG relative residual (default 1e-6 double, 1e-4 single).",
+     "title": "Tol"
+    },
+    "max_iter": {
+     "default": 400,
+     "description": "LOBPCG iterations per k-point.",
+     "minimum": 1,
+     "title": "Max Iter",
+     "type": "integer"
+    },
+    "extra_bands": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "LOBPCG block padding (default max(2, num_bands/4)).",
+     "title": "Extra Bands"
+    }
+   },
+   "title": "PWEOptions",
+   "type": "object"
+  }
+ },
+ {
+  "name": "lightsmith-quasistatic",
+  "method": "quasistatic",
+  "problem_kinds": [
+   "scattering"
+  ],
+  "license": "MIT",
+  "gpu": false,
+  "differentiable": false,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "Bohren & Huffman, Absorption and Scattering of Light by Small Particles (1983), ch. 5; Meier & Wokaun, Opt. Lett. 8, 581 (1983)",
+  "options_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "corrections": {
+     "default": "none",
+     "description": "none: static dipole. radiative: add radiative damping. mlwa: modified long-wavelength approximation (dynamic depolarisation + radiative damping). mie_dipole: Mie dipole term exact to O(x^4) + radiative damping (homogeneous spheres only).",
+     "enum": [
+      "none",
+      "radiative",
+      "mlwa",
+      "mie_dipole"
+     ],
+     "title": "Corrections",
+     "type": "string"
+    }
+   },
+   "title": "QuasistaticOptions",
+   "type": "object"
+  }
+ },
+ {
+  "name": "lightsmith-rcwa",
+  "method": "rcwa",
+  "problem_kinds": [
+   "periodic",
+   "layer_stack"
+  ],
+  "license": "MIT",
+  "gpu": true,
+  "differentiable": true,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "Moharam et al., JOSA A 12, 1068 (1995); Li, JOSA A 13, 1870 (1996) and JOSA A 14, 2758 (1997); Schuster et al., JOSA A 24, 2880 (2007); Rumpf, PIER B 35, 241 (2011)",
+  "options_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "harmonics": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "maxItems": 2,
+       "minItems": 2,
+       "prefixItems": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "integer"
+        }
+       ],
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Highest diffraction order kept along each lattice direction (|m| <= M, |n| <= N); an int applies to both. Default 25 for 1D gratings, 7 per direction for 2D lattices.",
+     "title": "Harmonics"
+    },
+    "factorization": {
+     "default": "auto",
+     "description": "auto/li/normal_vector: Li's inverse rule for 1D gratings and the normal-vector-field method for 2D lattices (needed for metals); laurent: naive Laurent rule everywhere.",
+     "enum": [
+      "auto",
+      "li",
+      "normal_vector",
+      "laurent"
+     ],
+     "title": "Factorization",
+     "type": "string"
+    },
+    "fourier": {
+     "default": "auto",
+     "description": "2D eps Fourier coefficients: closed-form shape transforms (auto, when shapes do not overlap) or a supersampled raster.",
+     "enum": [
+      "auto",
+      "analytic",
+      "raster"
+     ],
+     "title": "Fourier",
+     "type": "string"
+    },
+    "raster_points": {
+     "default": 256,
+     "description": "Raster grid points per lattice direction.",
+     "minimum": 16,
+     "title": "Raster Points",
+     "type": "integer"
+    },
+    "normal_blur": {
+     "default": 0.1,
+     "description": "Gaussian smoothing of the 2D normal-vector field, as a fraction of the shortest lattice vector.",
+     "exclusiveMinimum": 0,
+     "title": "Normal Blur",
+     "type": "number"
+    },
+    "precision": {
+     "default": "auto",
+     "description": "auto = double precision.",
+     "enum": [
+      "auto",
+      "single",
+      "double"
+     ],
+     "title": "Precision",
+     "type": "string"
+    },
+    "max_batch_bytes": {
+     "default": 2000000000.0,
+     "description": "Wavelengths are solved in batches using about this much memory.",
+     "exclusiveMinimum": 0,
+     "title": "Max Batch Bytes",
+     "type": "number"
+    }
+   },
+   "title": "RCWAOptions",
+   "type": "object"
+  }
+ },
+ {
+  "name": "treams",
+  "method": "tmatrix",
+  "problem_kinds": [
+   "scattering"
+  ],
+  "license": "MIT",
+  "gpu": false,
+  "differentiable": false,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "Beutel, Fernandez-Corbaton & Rockstuhl, Comput. Phys. Commun. 297, 109076 (2024); treams, https://github.com/tfp-photonics/treams",
+  "options_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "lmax": {
+     "anyOf": [
+      {
+       "minimum": 1,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Multipole order of every particle's T-matrix. Default: Wiscombe's criterion at the shortest wavelength, plus extra orders for particles with close neighbours.",
+     "title": "Lmax"
+    },
+    "extra_orders": {
+     "default": 0,
+     "description": "Orders added to the automatic per-particle lmax.",
+     "minimum": 0,
+     "title": "Extra Orders",
+     "type": "integer"
+    },
+    "lmax_global": {
+     "anyOf": [
+      {
+       "minimum": 1,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Order of the cluster's global T-matrix, used for orientation_average. Default: Wiscombe's criterion on the circumscribing sphere, plus 2.",
+     "title": "Lmax Global"
+    },
+    "convergence_check": {
+     "default": true,
+     "description": "For clusters, re-solve the wavelength of peak extinction with lmax + 2 and warn if the cross sections move by more than convergence_tol.",
+     "title": "Convergence Check",
+     "type": "boolean"
+    },
+    "convergence_tol": {
+     "default": 0.001,
+     "description": "Relative tolerance of the convergence check.",
+     "exclusiveMinimum": 0,
+     "title": "Convergence Tol",
+     "type": "number"
+    },
+    "max_modes": {
+     "default": 8000,
+     "description": "Refuse clusters whose T-matrix has more modes than this (dense, so memory grows as modes^2).",
+     "minimum": 1,
+     "title": "Max Modes",
+     "type": "integer"
+    }
+   },
+   "title": "TreamsOptions",
+   "type": "object"
+  }
+ },
+ {
+  "name": "lightsmith-tmm",
+  "method": "tmm",
+  "problem_kinds": [
+   "layer_stack"
+  ],
+  "license": "MIT",
+  "gpu": true,
+  "differentiable": true,
+  "available": true,
+  "unavailable_reason": null,
+  "citation": "Born & Wolf, Principles of Optics, Sec. 1.6; Katsidis & Siapkas, Appl. Opt. 41, 3978 (2002); Byrnes, arXiv:1603.02720",
+  "options_schema": {
+   "additionalProperties": false,
+   "properties": {
+    "precision": {
+     "default": "auto",
+     "description": "auto = double (TMM is cheap; interference needs the digits).",
+     "enum": [
+      "auto",
+      "single",
+      "double"
+     ],
+     "title": "Precision",
+     "type": "string"
+    }
+   },
+   "title": "TMMOptions",
+   "type": "object"
+  }
+ }
+]

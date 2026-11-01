@@ -1,0 +1,228 @@
+// Wire types. They mirror the library's Python objects; fields the GUI does not
+// interpret are kept as-is (`[k: string]: unknown`) so nothing is lost.
+
+import type { Json, JsonObject, JSONSchema } from "../schema/schema";
+
+export interface BackendInfo {
+  name: string;
+  method: string;
+  problem_kinds?: string[];
+  license: string;
+  gpu: boolean;
+  differentiable?: boolean;
+  available: boolean;
+  unavailable_reason: string | null;
+  citation: string;
+  /** JSON Schema of the backend's options model (Studio extension; may be absent). */
+  options_schema?: JSONSchema | null;
+}
+
+export interface SupportInfo {
+  name: string;
+  method: string;
+  available: boolean;
+  unavailable_reason?: string | null;
+  supported: boolean;
+  reason: string | null;
+}
+
+export type Doctor = { auto_device?: { framework: string; device: string; gpu_name?: string }; cuda_gpus?: string[]; [k: string]: unknown };
+
+export type Estimate = {
+  backend: string;
+  method: string;
+  framework?: string;
+  device?: string;
+  memory_bytes?: number;
+  dipoles?: number;
+  grid?: number[];
+  estimated_runtime_s?: number;
+  [k: string]: unknown;
+};
+
+export interface NearFieldData {
+  wavelength_nm: number;
+  plane: "xy" | "xz" | "yz";
+  offset_nm: number;
+  axis1_nm: number[];
+  axis2_nm: number[];
+  enhancement: number[][];
+  e_real?: number[][][] | null;
+  e_imag?: number[][][] | null;
+}
+
+export interface FarFieldData {
+  wavelength_nm: number;
+  theta_deg: number[];
+  phi_deg: number[];
+  dcsca_domega_nm2: number[][];
+}
+
+export interface ScatteringResult {
+  kind?: string;
+  method: string;
+  backend: string;
+  wavelengths_nm: number[];
+  c_ext_nm2: number[];
+  c_sca_nm2: number[];
+  c_abs_nm2: number[];
+  equivalent_radius_nm: number;
+  near_field?: NearFieldData[] | null;
+  far_field?: FarFieldData[] | null;
+  provenance: Record<string, unknown>;
+  warnings: string[];
+  [k: string]: unknown;
+}
+
+/** Results of non-scattering problem kinds are rendered generically. */
+export type AnyResult = ScatteringResult | (JsonObject & { method?: string; backend?: string; provenance?: Record<string, unknown>; warnings?: string[] });
+
+export interface CompareResult {
+  reference: string;
+  results: Record<string, AnyResult>;
+  relative_difference: Record<string, Record<string, { max: number; rms: number }>>;
+}
+
+export type Operation = "solve" | "compare" | "estimate";
+export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+
+export interface JobRequest {
+  operation: Operation;
+  spec: Json;
+  method?: string;
+  methods?: string[] | null;
+  device?: string;
+  reference?: string | null;
+  label?: string | null;
+}
+
+export interface JobState {
+  id: string;
+  status: JobStatus;
+  progress?: number | null;
+  message?: string | null;
+  operation?: Operation;
+  created_at?: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  result?: AnyResult | CompareResult | Estimate | null;
+  error?: { error: string; message: string } | null;
+}
+
+export interface JobEvent {
+  type: "status" | "progress" | "log" | "result" | "error";
+  status?: JobStatus;
+  progress?: number;
+  message?: string;
+  result?: JobState["result"];
+  error?: JobState["error"];
+}
+
+export class ApiError extends Error {
+  constructor(
+    readonly error: string,
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+  }
+}
+
+export function isScattering(r: unknown): r is ScatteringResult {
+  return !!r && typeof r === "object" && Array.isArray((r as ScatteringResult).c_ext_nm2);
+}
+
+export function isCompare(r: unknown): r is CompareResult {
+  return !!r && typeof r === "object" && "relative_difference" in (r as object) && "results" in (r as object);
+}
+
+// --- result kinds of the other problem kinds (lightsmith/results.py) -------------------------
+
+interface ResultBase {
+  kind: string;
+  method: string;
+  backend: string;
+  provenance: Record<string, unknown>;
+  warnings: string[];
+}
+
+/** Per polarization ("s", "p", ...): [angle][wavelength]. */
+export type PerPol = Record<string, number[][]>;
+
+export interface SpectrumResult extends ResultBase {
+  kind: "spectrum";
+  wavelengths_nm: number[];
+  angles_deg: number[];
+  polarizations: string[];
+  r: PerPol;
+  t: PerPol;
+  a: PerPol;
+  orders?: { order: [number, number]; r: PerPol; t: PerPol }[] | null;
+}
+
+export interface ModeData {
+  neff_real: number;
+  neff_imag: number;
+  ng?: number | null;
+  te_fraction?: number | null;
+  loss_db_per_cm?: number | null;
+  effective_area_um2?: number | null;
+  field?: { x_nm: number[]; y_nm: number[]; components: Record<string, [number[][], number[][]]> } | null;
+}
+
+export interface ModeResult extends ResultBase {
+  kind: "modes";
+  wavelengths_nm: number[];
+  /** [wavelength][mode] */
+  modes: ModeData[][];
+}
+
+export interface SParameterResult extends ResultBase {
+  kind: "sparameters";
+  wavelengths_nm: number[];
+  ports: string[];
+  /** [wavelength][out][in] */
+  s_real: number[][][];
+  s_imag: number[][][];
+}
+
+export interface BandResult extends ResultBase {
+  kind: "bands";
+  k_reduced: number[][];
+  k_distance: number[];
+  k_labels: Record<string, string>;
+  /** polarization -> [k][band], normalised frequency a/λ */
+  frequencies: Record<string, number[][]>;
+}
+
+export interface OptimizationResult extends ResultBase {
+  kind: "optimization";
+  history: { iteration: number; objective: number; terms?: Record<string, number>; beta?: number; binarization?: number }[];
+  objective_initial: number;
+  objective_final: number;
+  objective_binary: number;
+  /** Per design region: projected density at the final beta and the raw variables, both [x][y]. */
+  designs?: { name: string; x_nm: number[]; y_nm: number[]; density: number[][]; raw: number[][] }[];
+  /** The exported binary design as Structures (prism polygons). */
+  structures?: { name?: string | null; geometry: Record<string, unknown>; material: unknown }[];
+  /** The input device plus the exported structures. */
+  final_device?: Record<string, unknown>;
+  sparameters?: SParameterResult | null;
+}
+
+export type ResultKind = "cross_sections" | "spectrum" | "modes" | "sparameters" | "bands" | "optimization" | "unknown";
+
+/** Which viewer a result needs: its `kind`, or its shape for results from older servers. */
+export function resultKind(r: unknown): ResultKind {
+  if (!r || typeof r !== "object") return "unknown";
+  const o = r as Record<string, unknown>;
+  const k = o.kind;
+  if (k === "cross_sections" || k === "spectrum" || k === "modes" || k === "sparameters" || k === "bands" || k === "optimization") return k;
+  if (Array.isArray(o.c_ext_nm2)) return "cross_sections";
+  if (o.r && o.t && o.a && Array.isArray(o.angles_deg)) return "spectrum";
+  if (Array.isArray(o.modes)) return "modes";
+  if (Array.isArray(o.s_real)) return "sparameters";
+  if (o.frequencies && Array.isArray(o.k_distance)) return "bands";
+  if (Array.isArray(o.history)) return "optimization";
+  return "unknown";
+}

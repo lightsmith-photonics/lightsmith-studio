@@ -1,0 +1,56 @@
+{
+  "name": "lightsmith-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Lightsmith Studio: set up, run and analyse photonics simulations",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "sync:library": "uv run --project ../PlasmonHub python scripts/sync_library.py",
+    "tauri": "tauri"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@codemirror/lang-json": "^6.0.2",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-deep-link": "^2.6.3",
+    "@tauri-apps/plugin-dialog": "^2.8.4",
+    "@tauri-apps/plugin-fs": "^2.7.1",
+    "@uiw/react-codemirror": "^4.25.12",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "idb-keyval": "^6.3.0",
+    "immer": "^10.2.0",
+    "plotly.js-dist-min": "^3.7.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "three": "^0.180.0",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@playwright/test": "~1.64.1",
+    "@tauri-apps/cli": "^2.12.4",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^20.19.43",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.180.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "jsdom": "^26.1.0",
+    "typescript": "~5.9.3",
+    "vite": "^6.4.5",
+    "vitest": "^3.2.7"
+  }
+}

@@ -1,0 +1,14 @@
+{
+ "numpy": "2.4.6",
+ "torch": "2.11.0+cu128",
+ "cupy": null,
+ "cuda_gpus": [
+  "NVIDIA GeForce RTX 5070"
+ ],
+ "torch_cuda_build": "12.8",
+ "auto_device": {
+  "framework": "torch",
+  "device": "cuda:0",
+  "gpu_name": "NVIDIA GeForce RTX 5070"
+ }
+}

@@ -1,0 +1,44 @@
+# Rendered by the nginx image's envsubst step (only defined env vars are substituted).
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+    server_tokens off;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    # 'unsafe-eval' is needed by Plotly's WebGL traces (3D far-field plots); connect-src is open
+    # because the compute / materials / IdP URLs are deployment configuration.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' http: https: ws: wss:; frame-ancestors ${STUDIO_FRAME_ANCESTORS}; base-uri 'self'; form-action 'self'" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location = /config.js {
+        add_header Cache-Control "no-store" always;
+        add_header Content-Security-Policy "default-src 'none'" always;
+        add_header X-Content-Type-Options nosniff always;
+    }
+
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header X-Content-Type-Options nosniff always;
+        try_files $uri =404;
+    }
+
+    location / {
+        add_header Cache-Control "no-cache" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' http: https: ws: wss:; frame-ancestors ${STUDIO_FRAME_ANCESTORS}; base-uri 'self'; form-action 'self'" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        try_files $uri $uri/ /index.html;
+    }
+}

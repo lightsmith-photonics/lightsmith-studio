@@ -1,7 +1,7 @@
 # Lightsmith Studio
 
 A GUI for setting up, running and analysing photonics simulations with the
-Lightsmith library (repository `PlasmonHub`, expected next to this one). It does everything the library does, and nothing it can't:
+Lightsmith library (repository `lightsmith`, expected next to this one). It does everything the library does, and nothing it can't:
 - every form is generated from the library's JSON Schema;
 - every action is a JSON edit to the same spec the `lightsmith` CLI reads.
 
@@ -191,7 +191,7 @@ Embedding pages can `postMessage({studio: "getSpec"|"setSpec"|"apply"|"validate"
 - **Templates.** `src/test/kinds.test.ts` checks that every kind's template validates against the
   schema, and that every solved example's result kind has a viewer.
 - **Snapshot.** `npm run sync:library` refreshes the library snapshot: schema, backends with options
-  schemas, and bundled n/k data. `uv run --project ../PlasmonHub python scripts/make_fixtures.py`
+  schemas, and bundled n/k data. `uv run --project ../lightsmith python scripts/make_fixtures.py`
   re-solves the per-kind examples. It is slow: RCWA takes minutes.
 
 ## Tests

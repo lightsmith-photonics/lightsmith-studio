@@ -13,7 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "sync:library": "uv run --project ../PlasmonHub python scripts/sync_library.py",
+    "sync:library": "uv run --project ../lightsmith python scripts/sync_library.py",
     "tauri": "tauri"
   },
   "engines": {

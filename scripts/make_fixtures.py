@@ -3,9 +3,9 @@
 Writes src/generated/fixtures/<kind>.json = {"spec": ..., "result": ...}. Studio uses them
 as the per-kind "New project" templates (so every template is a spec the library accepted)
 and as real result shapes for the viewers and tests. Run from this repo, with the library
-checked out next to it (../PlasmonHub):
+checked out next to it (../lightsmith):
 
-    uv run --project ../PlasmonHub python scripts/make_fixtures.py [kind ...]
+    uv run --project ../lightsmith python scripts/make_fixtures.py [kind ...]
 
 A kind whose solve fails keeps its spec (validated) with "result": null.
 """

@@ -8,7 +8,6 @@ import { epsAt } from "../../physics/materials";
 import { amplitudes, depolarization, mieCoefficients, spheroidPolarizability } from "../../physics/mie";
 import { isObject, type Json, type JsonObject } from "../../schema/schema";
 import type { BackendInfo, Estimate, FarFieldData, NearFieldData, ScatteringResult, SupportInfo } from "../types";
-import { fdtdSnapshot } from "./snapshots";
 
 export const MOCK_BACKENDS = backendsJson as unknown as BackendInfo[];
 export const MOCK_WARNING = "mock server: approximate in-browser physics, not a real solver backend";
@@ -170,6 +169,18 @@ export function supportsMock(spec: JsonObject, b: BackendInfo): { ok: boolean; w
         const why = missing({ near: true, far: true, substrate: true, beam: true, res: true });
         return { ok: !why, why };
       }
+      // as the library's quasistatic.supports and bem.supports
+      if (b.method === "quasistatic") {
+        if (ps.length !== 1) return { ok: false, why: "the quasistatic approximation handles exactly one particle" };
+        if (!["sphere", "layered_sphere", "spheroid"].includes(String(ps[0].shape.kind))) return { ok: false, why: `quasistatic handles spheres, layered spheres and spheroids, got '${ps[0].shape.kind}'` };
+        const why = missing({ far: true, oa: true }) || (spec.orientation_average === true && far ? "far_field output is not available with orientation_average" : "");
+        return { ok: !why, why };
+      }
+      if (b.method === "bem") {
+        if (isObject(spec.substrate)) return { ok: false, why: "BEM here uses the homogeneous-space Green's function and does not support a substrate; use 'fdtd'" };
+        const why = missing({ near: true, far: true, oa: true }) || fieldsWithOA();
+        return { ok: !why, why };
+      }
       if (b.method === "dda") {
         const why = missing({ near: true, far: true, oa: true }) || fieldsWithOA();
         return { ok: !why, why };
@@ -238,23 +249,6 @@ export function estimateMock(spec: JsonObject, method: string, device: string): 
   if (problemKind(spec) !== "scattering") return { backend: b.name, method: b.method, ...dev, note: "mock server: no size estimate for this problem kind" };
   const wl = wavelengthArray(spec);
   if (b.method === "mie") return { backend: b.name, method: b.method, ...dev, cost: "negligible", memory_bytes: 0 };
-  const snap = b.method === "fdtd" ? fdtdSnapshot(spec) : undefined;
-  if (snap) {
-    // The library's own numbers for this exact spec (its layout; see scripts/fdtd_layout.py).
-    const L = snap.layout;
-    const half = L.symmetry.reduction > 1;
-    return {
-      backend: b.name,
-      method: b.method,
-      ...dev,
-      grid: L.grid.shape,
-      cells: L.run_cells ?? L.grid.cells,
-      spacing_nm: L.grid.base_spacing_nm,
-      symmetry: L.symmetry as unknown as Json,
-      ...(L.grid.kind === "graded" ? { graded_grid: { kind: "graded", spacing_min_nm: L.grid.spacing_min_nm, spacing_max_nm: L.grid.spacing_max_nm, max_ratio: L.grid.max_ratio ?? null, base_spacing_nm: L.grid.base_spacing_nm } } : {}),
-      note: `mock server: the library's layout of this template${half ? " (the run steps one mirror image of the grid)" : ""}`,
-    };
-  }
   const ps = particles(spec);
   const opts = { ...((spec.options as JsonObject)?.[b.method] as JsonObject), ...((spec.options as JsonObject)?.[b.name] as JsonObject) };
   if (b.method === "dda") {

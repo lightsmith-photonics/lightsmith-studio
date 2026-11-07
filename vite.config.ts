@@ -8,8 +8,8 @@ import react from "@vitejs/plugin-react";
 const LIBRARY = resolve(__dirname, "../lightsmith");
 
 /**
- * Development only: `POST /__library/v1/layout` runs scripts/fdtd_layout.py with the library checked out next
- * to Studio, so the mesh preview shows the library's own grid before any compute server offers the proposed
+ * Development only: `POST /__library/v1/layout` runs scripts/solver_layout.py with the library checked out next
+ * to Studio, so the previews show what the library will discretise before any compute server offers the proposed
  * `/v1/layout` (API_ASSUMPTIONS.md). Answers 501 when there is no library or `uv`. Off with
  * STUDIO_LIBRARY_BRIDGE=0 (the Playwright mock runs use it off, so they need no Python).
  */
@@ -30,7 +30,7 @@ function libraryBridge(): Plugin {
         let body = "";
         req.on("data", (c) => (body += c));
         req.on("end", () => {
-          const child = spawn("uv", ["run", "--project", LIBRARY, "python", resolve(__dirname, "scripts/fdtd_layout.py")], { stdio: ["pipe", "pipe", "pipe"] });
+          const child = spawn("uv", ["run", "--project", LIBRARY, "python", resolve(__dirname, "scripts/solver_layout.py")], { stdio: ["pipe", "pipe", "pipe"] });
           let out = "";
           let err = "";
           child.stdout.on("data", (c) => (out += c));
@@ -40,7 +40,7 @@ function libraryBridge(): Plugin {
             if (res.writableEnded) return;
             if (code === 0) return reply(200, out);
             if (code === 2 && out) return reply(422, out); // the library refused the spec: {error, message}
-            reply(500, { error: "BridgeError", message: (err.trim().split("\n").pop() ?? "") || `fdtd_layout.py exited with ${code}` });
+            reply(500, { error: "BridgeError", message: (err.trim().split("\n").pop() ?? "") || `solver_layout.py exited with ${code}` });
           });
           child.stdin.end(body);
         });

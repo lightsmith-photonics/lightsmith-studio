@@ -10,9 +10,12 @@ checked out next to it (../lightsmith):
 A kind whose solve fails keeps its spec (validated) with "result": null.
 
 Also writes src/generated/fdtd_templates.json: Studio's FDTD scattering templates, each with the
-layout the library builds for it (scripts/fdtd_layout.py: grid, TFSF and flux boxes, CPML,
+layout the library builds for it (scripts/solver_layout.py: grid, TFSF and flux boxes, CPML,
 refinement regions, mirror planes), and fixtures/fdtd/<id>.json: the library's FDTD solution of
 each (on the GPU when there is one). The mock server answers those exact specs with them.
+
+And src/generated/layouts.json: for every example (per kind, and the FDTD templates), what each backend that
+supports it will discretise (scripts/solver_layout.py), for the mock's Preview tab.
 """
 
 from __future__ import annotations
@@ -199,6 +202,19 @@ FDTD_TEMPLATES: list[dict] = [
                                "polarization": [0, 1, 0]},
               "wavelengths": {"start_nm": 500, "stop_nm": 900, "num": 41},
               "options": {"fdtd": {"spacing_nm": 5}}}},
+    {"id": "fdtd-device", "name": "FDTD: 2D waveguide, TE ports",
+     "description": "A 500 nm silicon strip in silica between two ports: S-parameters from the FDTD device solver "
+                    "(2D, polarization te).",
+     "spec": {"kind": "device", "dimension": 2, "background": SIO2,
+              "structures": [{"name": "wg", "geometry": {"kind": "prism", "profile": {"kind": "rectangle", "center_nm": [0, 0],
+                                                                                    "size_nm": [20000, 500]},
+                                                         "z_min_nm": -110, "z_max_nm": 110, "sidewall_angle_deg": 0},
+                              "material": SI}],
+              "domain_center_nm": [0, 0, 0], "domain_size_nm": [3000, 4000, 0],
+              "ports": [{"name": "o1", "center_nm": [-1200, 0, 0], "size_nm": [0, 3600, 1], "direction": "+", "num_modes": 1},
+                        {"name": "o2", "center_nm": [1200, 0, 0], "size_nm": [0, 3600, 1], "direction": "-", "num_modes": 1}],
+              "wavelengths": [1500, 1525, 1550, 1575, 1600],
+              "options": {"fdtd": {"spacing_nm": 25, "polarization": "te"}}}},
 ]
 
 NO_SOLVE: set[str] = set()
@@ -254,13 +270,13 @@ def main(kinds: list[str]) -> None:
 def fdtd_templates() -> None:
     """FDTD templates with the library's layout and, when it runs, its FDTD solution."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from fdtd_layout import layout
+    from solver_layout import layout
 
     device = "gpu" if osc.doctor().get("cuda_gpus") else "cpu"
     out = []
     for t in FDTD_TEMPLATES:
         problem = parse_problem(t["spec"])
-        lay = layout(t["spec"])
+        lay = layout(t["spec"], "fdtd")
         result, t0 = None, time.perf_counter()
         if not lay.get("error"):
             try:
@@ -276,11 +292,41 @@ def fdtd_templates() -> None:
             res_path.write_text(text + "\n", encoding="utf-8", newline="\n")
         elif res_path.exists():
             res_path.unlink()
-        print(f"{t['id']}: layout {lay['grid']['kind']} {lay['grid']['shape']}, "
+        print(f"{t['id']}: layout {lay['layout_kind']} {lay['summary'].get('grid')}, "
               f"{'solved' if result else 'not solved'} in {time.perf_counter() - t0:.1f} s"
               + (f" ({lay['error']})" if lay.get("error") else ""))
     path = OUT.parent / "fdtd_templates.json"
     path.write_text(json.dumps(out, ensure_ascii=False, allow_nan=False) + "\n", encoding="utf-8", newline="\n")
+    print(f"wrote {path.name} ({path.stat().st_size // 1024} kB)")
+
+
+def layout_snapshots() -> None:
+    """Every example's layout for every backend that can run it (the mock's Preview tab)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from solver_layout import layout
+
+    entries = [*SPECS.values(), *[t["spec"] for t in FDTD_TEMPLATES]]
+    out = []
+    for spec in entries:
+        problem = parse_problem(spec)
+        kind = problem.kind
+        lays = {}
+        for b in osc.all_backends():
+            if kind not in (getattr(b, "problem_kinds", None) or ("scattering",)) or not b.available()[0]:
+                continue
+            if not b.supports(problem)[0]:
+                continue
+            t0 = time.perf_counter()
+            try:
+                lays[b.name] = layout(spec, b.name)
+            except Exception as e:  # noqa: BLE001
+                print(f"{kind} {b.name}: layout failed: {type(e).__name__}: {e}")
+                continue
+            print(f"layout {kind:12s} {b.name:24s} {lays[b.name]['layout_kind']:18s} {time.perf_counter() - t0:.1f} s")
+        out.append({"spec": spec, "layouts": lays})
+    path = OUT.parent / "layouts.json"
+    text = json.dumps(_finite(json.loads(json.dumps(out, default=float))), ensure_ascii=False, allow_nan=False)
+    path.write_text(text + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {path.name} ({path.stat().st_size // 1024} kB)")
 
 
@@ -298,6 +344,8 @@ if __name__ == "__main__":
     write_templates()
     if "fdtd" in args or not args:
         fdtd_templates()
-    kinds = [a for a in args if a != "fdtd"]
+    if "layouts" in args or not args:
+        layout_snapshots()
+    kinds = [a for a in args if a not in ("fdtd", "layouts")]
     if kinds or not args:
         main(kinds or list(SPECS))

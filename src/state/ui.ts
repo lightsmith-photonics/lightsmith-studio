@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type CenterTab = "scene" | "results" | "compare";
+export type CenterTab = "scene" | "preview" | "results" | "compare" | "sweep";
 export type RightTab = "properties" | "run" | "json";
 export type CodeTab = "python" | "cli" | "curl" | "mcp";
 

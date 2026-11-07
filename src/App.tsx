@@ -25,7 +25,9 @@ import { useUi, type CenterTab, type RightTab } from "./state/ui";
 // three.js and Plotly are large: load the scene and the results only when shown.
 const Viewport = lazy(() => import("./components/Viewport").then((m) => ({ default: m.Viewport })));
 const ResultsView = lazy(() => import("./components/Results").then((m) => ({ default: m.ResultsView })));
-const CompareView = lazy(() => import("./components/Results").then((m) => ({ default: m.CompareView })));
+const CompareView = lazy(() => import("./components/CompareView").then((m) => ({ default: m.CompareView })));
+const PreviewView = lazy(() => import("./components/Preview").then((m) => ({ default: m.PreviewView })));
+const SweepView = lazy(() => import("./components/Sweep").then((m) => ({ default: m.SweepView })));
 
 async function openLink(href: string) {
   try {
@@ -158,16 +160,20 @@ export default function App() {
             onChange={ui.setCenterTab}
             tabs={[
               { id: "scene", label: "Scene" },
+              { id: "preview", label: "Preview" },
               { id: "results", label: "Results" },
               { id: "compare", label: "Compare" },
+              { id: "sweep", label: "Sweep" },
             ]}
             testId="center-tabs"
           />
           <div className="center-body">
             <Suspense fallback={<div className="loading">Loading…</div>}>
               {ui.centerTab === "scene" && (kind === "scattering" || kind === "emission" ? <Viewport /> : <KindScene kind={kind} />)}
+              {ui.centerTab === "preview" && <PreviewView />}
               {ui.centerTab === "results" && <ResultsView />}
               {ui.centerTab === "compare" && <CompareView />}
+              {ui.centerTab === "sweep" && <SweepView />}
             </Suspense>
           </div>
         </main>

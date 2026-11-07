@@ -259,7 +259,47 @@ export function resultKind(r: unknown): ResultKind {
   return "unknown";
 }
 
-// --- FDTD layout (proposed library API; API_ASSUMPTIONS.md "Proposed: FDTD layout") ----------
+// --- solver layouts (proposed library API; API_ASSUMPTIONS.md "Proposed: solver layouts") ----------
+
+export type LayoutKind = "yee_grid" | "device_grid" | "dipole_lattice" | "surface_mesh" | "multipoles" | "harmonics" | "cross_section_grid" | "cells" | "plane_waves" | "none";
+
+/** What a backend will discretise for a spec, before any solve: a common envelope and a per-solver payload. */
+export interface SolverLayout {
+  backend: string;
+  method: string;
+  problem_kind: string;
+  layout_kind: LayoutKind | string;
+  /** Key figures, in display order. */
+  summary: Record<string, string | number | boolean | null | number[]>;
+  payload: Record<string, unknown>;
+  /** The library's estimate for the same backend, when it gave one. */
+  estimate?: Record<string, unknown> | null;
+  warnings: string[];
+  /** The library's refusal; the layout is still returned when it can be computed. */
+  error: string | null;
+}
+
+/** An FDTD scattering or emission layout (layout_kind "yee_grid"), flattened for the 3D overlay. */
+export function toFdtdLayout(l: SolverLayout | null | undefined): FdtdLayout | null {
+  if (!l || l.layout_kind !== "yee_grid") return null;
+  const p = l.payload as Record<string, unknown>;
+  return {
+    backend: l.backend,
+    method: l.method,
+    problem_kind: l.problem_kind,
+    grid: p.grid as FdtdLayout["grid"],
+    domain_nm: p.domain_nm as FdtdLayout["domain_nm"],
+    pml: p.pml as FdtdLayout["pml"],
+    boxes: (p.boxes as LayoutBox[]) ?? [],
+    regions: (p.regions as LayoutRegion[]) ?? [],
+    symmetry: p.symmetry as SymmetryInfo,
+    run_cells: typeof l.estimate?.cells === "number" ? (l.estimate.cells as number) : null,
+    warnings: l.warnings,
+    error: l.error,
+  };
+}
+
+// --- FDTD layout (the yee_grid payload) ----------
 
 export interface LayoutBox {
   /** "tfsf", "flux_total", "flux_scattered" (scattering) or "flux_radiated" (emission). */

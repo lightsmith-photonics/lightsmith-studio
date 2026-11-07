@@ -127,7 +127,7 @@ export const TEMPLATES: Template[] = [
     }),
   },
   // FDTD set-ups, defined in scripts/make_fixtures.py so the library has checked, laid out and solved each one.
-  ...FDTD_TEMPLATES.map((t) => ({ id: t.id, name: t.name, description: t.description, spec: t.spec })),
+  ...FDTD_TEMPLATES.filter((t) => (t.spec.kind ?? "scattering") === "scattering").map((t) => ({ id: t.id, name: t.name, description: t.description, spec: t.spec })),
 ];
 
 export const DEFAULT_SPEC: JsonObject = TEMPLATES[0].spec;

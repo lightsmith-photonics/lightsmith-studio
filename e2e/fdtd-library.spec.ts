@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// The mesh preview against the library itself: the dev server's library bridge runs scripts/fdtd_layout.py
+// Previews against the library itself: the dev server's library bridge runs scripts/solver_layout.py
 // with ../lightsmith (vite.config.ts). Needs uv and the library checkout:
 //
 //   STUDIO_LIBRARY_BRIDGE=1 npx playwright test fdtd-library
@@ -48,4 +48,19 @@ test("beam + mesh override + symmetry: drawn, with the library's refusal", async
   await page.getByTestId("mesh-slice").selectOption("y");
   await page.waitForTimeout(800);
   await page.screenshot({ path: "docs/screenshots/fdtd-beam-override.png" });
+});
+
+test("preview of any solver: an edited spec gets a fresh DDA lattice from the library", async ({ page }) => {
+  await page.getByTestId("menu-new").click();
+  await page.getByTestId("kind-scattering").click();
+  await page.getByTestId("start-example").click();
+  await page.getByTestId("center-tabs").getByTestId("tab-preview").click();
+  await page.getByTestId("preview-backend").selectOption("lightsmith-dda");
+  await expect(page.getByTestId("preview-source")).toContainText("snapshot");
+  const before = await page.getByTestId("preview-summary").textContent();
+  await page.evaluate(() => window.studio.apply({ op: "replace", path: ["options"], value: { dda: { dipoles_per_diameter: 24 } } }));
+  await expect(page.getByTestId("preview-source")).toContainText("library bridge", { timeout: 30_000 });
+  await expect(page.getByTestId("preview-summary")).toContainText("24");
+  expect(await page.getByTestId("preview-summary").textContent()).not.toEqual(before);
+  await expect(page.getByTestId("preview-plot")).toHaveAttribute("data-ready", "true");
 });

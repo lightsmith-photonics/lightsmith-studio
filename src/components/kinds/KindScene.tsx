@@ -8,6 +8,8 @@ import { materialColor, materialLabel, nkAt } from "../../physics/materials";
 import { clone, isObject, type Json, type JsonObject, type Path } from "../../schema/schema";
 import { kindMeta } from "../../state/kinds";
 import { useSpec } from "../../state/store";
+import { useConnection } from "../../state/connection";
+import { useUi } from "../../state/ui";
 import { CrossSection, type Overlay2D, type Shape2D } from "./CrossSection";
 import { cellPolygon, footprint, moveProfile, type XY } from "./geometry2d";
 
@@ -133,6 +135,7 @@ function LayerStackScene() {
   const insertAt = sel === null ? layers.length : sel + 1;
   return (
     <div className="kind-scene" data-testid="viewport">
+      <SolverStrip kind={typeof spec.kind === "string" ? spec.kind : ""} twoD={false} optionsPrefix={[]} />
       <div className="kind-toolbar">
         <div className="menu-wrap">
           <button className="small" onClick={() => setMenu(!menu)} data-testid="add-layer">
@@ -209,6 +212,7 @@ function PeriodicScene() {
   const overlays: Overlay2D[] = [{ key: "cell", points: cell, closed: true, color: "#38d39f", dash: oneD, label: oneD ? "1D period (invariant ⟂ a₁)" : "unit cell" }];
   return (
     <div className="kind-scene split" data-testid="viewport">
+      <SolverStrip kind={typeof spec.kind === "string" ? spec.kind : ""} twoD={false} optionsPrefix={[]} />
       <div className="split-left">
         <StackDiagram layers={layers} layerMaterial={(l) => l.background} patterned testId="periodic-stack" />
       </div>
@@ -265,6 +269,7 @@ function ModeScene() {
   ];
   return (
     <div className="kind-scene" data-testid="viewport">
+      <SolverStrip kind={typeof spec.kind === "string" ? spec.kind : ""} twoD={false} optionsPrefix={[]} />
       <CrossSection
         shapes={shapes}
         overlays={overlays}
@@ -296,6 +301,7 @@ function BandsScene() {
   const kp = arr(spec.k_path).map((k) => k.label).join(" → ");
   return (
     <div className="kind-scene" data-testid="viewport">
+      <SolverStrip kind={typeof spec.kind === "string" ? spec.kind : ""} twoD={false} optionsPrefix={[]} />
       <CrossSection
         shapes={shapes}
         overlays={[{ key: "cell", points: cellPolygon(a1, a2), closed: true, color: "#38d39f", label: "unit cell" }]}
@@ -343,12 +349,58 @@ function DeviceScene({ prefix, designRegions }: { prefix: Path; designRegions?: 
   const layout = isObject(dev.layout) ? dev.layout : null;
   return (
     <div className="kind-scene" data-testid="viewport">
+      <SolverStrip kind={typeof spec.kind === "string" ? spec.kind : "device"} twoD={dev.dimension === 2} optionsPrefix={prefix} />
       <CrossSection
         shapes={shapes}
         overlays={overlays}
         title={`${dev.dimension === 2 ? "2D device" : "3D device (top view)"} · background ${materialLabel(dev.background)}${layout ? ` · + GDS ${layout.path}` : ""}`}
         empty="Add structures, or import a GDS layout (layout)."
       />
+    </div>
+  );
+}
+
+/**
+ * The backends that solve this kind, as chips that set the Run panel's method, a link to the Preview tab (what
+ * the chosen backend will discretise), and, for 2D devices on a backend with a `polarization` option, te / tm.
+ */
+function SolverStrip({ kind, twoD, optionsPrefix }: { kind: string; twoD: boolean; optionsPrefix: Path }) {
+  const conn = useConnection();
+  const spec = useSpec((s) => s.spec);
+  const apply = useSpec((s) => s.apply);
+  const methods = [...new Set(conn.backends.filter((b) => !b.problem_kinds || b.problem_kinds.includes(kind)).map((b) => b.method))];
+  const chosen = conn.backends.find((b) => b.method === conn.method || b.name === conn.method);
+  const polOpt = twoD && chosen?.options_schema?.properties && "polarization" in chosen.options_schema.properties ? chosen.method : null;
+  const base = optionsPrefix.length ? (spec[optionsPrefix[0] as string] as JsonObject) : spec;
+  const opts = isObject(base?.options) ? base.options : {};
+  const pol = polOpt && isObject(opts[polOpt]) ? (opts[polOpt] as JsonObject).polarization : undefined;
+  const setPol = (v: string) => {
+    const path = [...optionsPrefix, "options"];
+    const next = { ...opts, [polOpt!]: { ...(isObject(opts[polOpt!]) ? (opts[polOpt!] as JsonObject) : {}), polarization: v } };
+    apply({ op: "replace", path, value: next });
+  };
+  return (
+    <div className="kind-toolbar" data-testid="solver-strip">
+      <span className="muted small">Solve with</span>
+      {["auto", ...methods].map((m) => (
+        <button key={m} className={conn.method === m ? "chip active" : "chip"} onClick={() => conn.setMethod(m)} data-testid={`solver-${m}`}>
+          {m}
+        </button>
+      ))}
+      {polOpt && (
+        <>
+          <span className="muted small">2D polarization</span>
+          {["te", "tm"].map((v) => (
+            <button key={v} className={(pol ?? "te") === v ? "chip active" : "chip"} onClick={() => setPol(v)} data-testid={`pol-${v}`} title={v === "te" ? "E in the xy plane" : "E along z"}>
+              {v}
+            </button>
+          ))}
+        </>
+      )}
+      <span className="spacer" />
+      <button className="small" onClick={() => useUi.getState().setCenterTab("preview")} data-testid="open-preview">
+        Preview grid
+      </button>
     </div>
   );
 }

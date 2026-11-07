@@ -48,7 +48,7 @@ test("FDTD layout: graded grid, mirror planes, mesh override and mesh slice", as
   await page.getByTestId("method-select").selectOption("fdtd");
   await page.getByTestId("estimate-btn").click();
   await expect(page.getByTestId("estimate-card")).toContainText("planes_nm");
-  await expect(page.getByTestId("estimate-card")).toContainText("one mirror image");
+  await expect(page.getByTestId("estimate-card")).toContainText("the library's estimate");
 });
 
 test("mesh overrides: add, edit, undo; the layout goes stale until the library answers", async ({ page }) => {
@@ -67,7 +67,7 @@ test("mesh overrides: add, edit, undo; the layout goes stale until the library a
   expect(s.options.fdtd.mesh_override[1].spacing_nm).toBe(1.5);
   // the mock has no library: the last layout stays, marked as older than the spec
   await expect(page.getByTestId("fdtd-source")).toContainText("before your last edit");
-  await expect(page.getByTestId("fdtd-note")).toContainText("FDTD templates only");
+  await expect(page.getByTestId("fdtd-note")).toContainText("shipped examples only");
 
   await page.evaluate(() => window.studio.undo());
   await page.evaluate(() => window.studio.undo());

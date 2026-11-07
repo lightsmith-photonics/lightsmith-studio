@@ -1,10 +1,10 @@
 // FDTD set-up: the templates' library snapshots (layout and solution), the mock's FDTD rules, and the spec
-// helpers behind the 3D overlay. The layouts are the library's (scripts/fdtd_layout.py); these tests check
+// helpers behind the 3D overlay. The layouts are the library's (scripts/solver_layout.py); these tests check
 // that Studio reads them consistently, not the library's numbers.
 
 import { describe, expect, it } from "vitest";
 import schemaJson from "../generated/schema.json";
-import { ApiError, resultKind, type FdtdLayout } from "../api/types";
+import { ApiError, resultKind, toFdtdLayout, type FdtdLayout } from "../api/types";
 import { MockComputeClient } from "../api/compute";
 import { canonical, FDTD_TEMPLATES, fdtdSnapshot, fdtdSnapshotResult } from "../api/mock/snapshots";
 import { supportsAll } from "../api/mock/solver";
@@ -16,11 +16,13 @@ import { KIND_TEMPLATES } from "../state/kinds";
 
 const doc = new SchemaDoc(schemaJson as JSONSchema);
 const byId = (id: string) => FDTD_TEMPLATES.find((t) => t.id === id)!;
+const fdtd = (id: string) => toFdtdLayout(byId(id).layout)!;
+const OPEN = FDTD_TEMPLATES.filter((t) => t.layout.layout_kind === "yee_grid");
 const inside = (a: { lo_nm: number[]; hi_nm: number[] }, b: { lo_nm: number[]; hi_nm: number[] }) => a.lo_nm.every((x, i) => x >= b.lo_nm[i] - 1e-6 && a.hi_nm[i] <= b.hi_nm[i] + 1e-6);
 
 describe("FDTD templates", () => {
   it("are valid specs, each with the library's layout", () => {
-    expect(FDTD_TEMPLATES.map((t) => t.id)).toEqual(["fdtd-override", "fdtd-graded", "fdtd-beam", "fdtd-substrate"]);
+    expect(FDTD_TEMPLATES.map((t) => t.id)).toEqual(["fdtd-override", "fdtd-graded", "fdtd-beam", "fdtd-substrate", "fdtd-device"]);
     for (const t of FDTD_TEMPLATES) {
       expect(validateProblem(doc, t.spec), t.id).toEqual([]);
       expect(t.layout.error, t.id).toBeNull();
@@ -28,7 +30,8 @@ describe("FDTD templates", () => {
   });
 
   it("have consistent layouts: nested boxes, monotonic nodes, CPML on the outer cells", () => {
-    for (const { id, layout: L } of FDTD_TEMPLATES) {
+    for (const { id, layout } of OPEN) {
+      const L = toFdtdLayout(layout)!;
       const box = (n: string) => L.boxes.find((b) => b.name === n)!;
       const inner = { lo_nm: L.pml.inner_lo_nm, hi_nm: L.pml.inner_hi_nm };
       expect(inside(box("flux_total"), box("tfsf")), id).toBe(true);
@@ -46,16 +49,16 @@ describe("FDTD templates", () => {
   });
 
   it("reflect the options: override region, graded grids, mirror planes", () => {
-    const o = byId("fdtd-override").layout;
+    const o = fdtd("fdtd-override");
     expect(o.grid.kind).toBe("graded");
     expect(o.regions).toEqual([expect.objectContaining({ source: "mesh_override", index: 0, spacing_nm: [2, 2, 2] })]);
     expect(Math.min(...o.grid.spacing_min_nm)).toBeCloseTo(2, 6);
     expect(o.symmetry.planes_nm).toEqual({ x: 0, y: 0 });
     // two mirror planes: the run steps about a quarter of the grid (plus a ghost plane per mirror)
     expect(o.run_cells!).toBeLessThan(o.grid.cells / 3.5);
-    expect(byId("fdtd-graded").layout.regions[0].source).toBe("auto");
-    expect(byId("fdtd-beam").layout.symmetry.reduction).toBe(1);
-    expect(byId("fdtd-substrate").layout.symmetry.mirrors).toEqual({ y: "antisymmetric (PEC)" });
+    expect(fdtd("fdtd-graded").regions[0].source).toBe("auto");
+    expect(fdtd("fdtd-beam").symmetry.reduction).toBe(1);
+    expect(fdtd("fdtd-substrate").symmetry.mirrors).toEqual({ y: "antisymmetric (PEC)" });
   });
 
   it("match only the exact spec (key order does not matter)", () => {
@@ -81,10 +84,10 @@ describe("mock server, FDTD", () => {
   const mock = new MockComputeClient({ latencyMs: 0, stepMs: 0 });
 
   it("serves the templates' layouts and 404s for anything else", async () => {
-    const L: FdtdLayout = await mock.layout(byId("fdtd-beam").spec);
+    const L: FdtdLayout = toFdtdLayout(await mock.layout(byId("fdtd-beam").spec, "fdtd"))!;
     expect(L.backend).toBe("lightsmith-fdtd");
     const edited = { ...byId("fdtd-beam").spec, medium_index: 1.5 };
-    await expect(mock.layout(edited)).rejects.toSatisfy((e: unknown) => e instanceof ApiError && e.status === 404);
+    await expect(mock.layout(edited, "fdtd")).rejects.toSatisfy((e: unknown) => e instanceof ApiError && e.status === 404);
   });
 
   it("answers the ring-down template with the library's FDTD solution", async () => {

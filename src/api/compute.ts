@@ -5,7 +5,7 @@
 import doctorJson from "../generated/doctor.json";
 import schemaJson from "../generated/schema.json";
 import { clone, isObject, type Json, type JsonObject, type JSONSchema } from "../schema/schema";
-import { fdtdSnapshot, fdtdSnapshotResult } from "./mock/snapshots";
+import { fdtdSnapshotResult, layoutSnapshot } from "./mock/snapshots";
 import { CANNED_WARNING, estimateMock, MOCK_BACKENDS, problemKind, resolveBackend, SNAPSHOT_WARNING, solveMock, supportsAll } from "./mock/solver";
 import {
   ApiError,
@@ -13,7 +13,7 @@ import {
   type CompareResult,
   type Doctor,
   type Estimate,
-  type FdtdLayout,
+  type SolverLayout,
   type JobEvent,
   type JobRequest,
   type JobState,
@@ -31,10 +31,10 @@ export interface ComputeClient {
   /** Per-backend availability and support for this spec, with the library's reasons. */
   supports(spec: Json, backends: BackendInfo[]): Promise<SupportInfo[]>;
   /**
-   * The FDTD layout (grid, source and monitor boxes, CPML, mirror planes) the library builds for this spec.
-   * Proposed endpoint `POST /v1/layout`; throws ApiError with status 404 where the server lacks it.
+   * What the backend `method` will discretise for this spec (grid, mesh, dipoles, harmonics, cells…), before any
+   * solve. Proposed endpoint `POST /v1/layout`; throws ApiError with status 404 where the server lacks it.
    */
-  layout(spec: Json, method?: string): Promise<FdtdLayout>;
+  layout(spec: Json, method?: string): Promise<SolverLayout>;
   submit(req: JobRequest): Promise<JobState>;
   job(id: string): Promise<JobState>;
   cancel(id: string): Promise<void>;
@@ -137,8 +137,8 @@ export class HttpComputeClient implements ComputeClient {
   estimate(spec: Json, method: string, device: string) {
     return this.req<Estimate>("POST", "/v1/estimate", { simulation: spec, method, device });
   }
-  layout(spec: Json, method = "fdtd") {
-    return this.req<FdtdLayout>("POST", "/v1/layout", { simulation: spec, method });
+  layout(spec: Json, method = "auto") {
+    return this.req<SolverLayout>("POST", "/v1/layout", { simulation: spec, method });
   }
 
   private noSupportsEndpoint = false;
@@ -347,18 +347,23 @@ export class MockComputeClient implements ComputeClient {
   }
   async estimate(spec: Json, method: string, device: string) {
     await this.delay();
+    // the library's own estimate of a shipped example (recorded with its layout), else the mock's
+    const b = wrap(() => resolveBackend(asSpec(spec), method));
+    const snap = await layoutSnapshot(spec, b.name);
+    if (snap?.estimate) return { ...(clone(snap.estimate as Json) as Estimate), note: "mock server: the library's estimate of this example (recorded on the CPU)" };
     return wrap(() => estimateMock(asSpec(spec), method, device));
   }
   async supports(spec: Json) {
     await this.delay();
     return supportsAll(asSpec(spec));
   }
-  /** Only the shipped FDTD templates: their layouts are the library's (scripts/fdtd_layout.py). */
-  async layout(spec: Json) {
+  /** Only the shipped examples: their layouts are the library's (scripts/solver_layout.py, make_fixtures.py). */
+  async layout(spec: Json, method = "auto") {
     await this.delay();
-    const snap = fdtdSnapshot(spec);
-    if (!snap) throw new ApiError("NotFound", "the mock server has the library's layout of the FDTD templates only, as shipped", 404);
-    return clone(snap.layout as unknown as Json) as unknown as FdtdLayout;
+    const b = wrap(() => resolveBackend(asSpec(spec), method));
+    const snap = await layoutSnapshot(spec, b.name);
+    if (!snap) throw new ApiError("NotFound", "the mock server has the library's layouts of the shipped examples only", 404);
+    return clone(snap as unknown as Json) as unknown as SolverLayout;
   }
 
   async submit(request: JobRequest): Promise<JobState> {
@@ -392,11 +397,10 @@ export class MockComputeClient implements ComputeClient {
       let result: JobState["result"];
       let snap: Awaited<ReturnType<typeof fdtdSnapshotResult>> = null;
       if (r.operation === "estimate") result = estimateMock(spec, r.method ?? "auto", r.device ?? "auto");
-      else if (problemKind(spec) !== "scattering") result = await cannedResult(spec, r);
       else if (r.operation === "solve" && resolveBackend(spec, r.method ?? "auto").method === "fdtd" && (snap = await fdtdSnapshotResult(spec))) {
         const res = clone(snap.result as unknown as Json) as unknown as ScatteringResult;
         result = { ...res, provenance: { ...res.provenance, mock: true, snapshot: snap.id }, warnings: [SNAPSHOT_WARNING, ...(res.warnings ?? [])] };
-      }
+      } else if (problemKind(spec) !== "scattering") result = await cannedResult(spec, r);
       else if (r.operation === "compare") result = compareMock(spec, r.methods ?? null, r.device ?? "auto", r.reference ?? null);
       else result = solveMock(spec, r.method ?? "auto", r.device ?? "auto");
       if ((job.status as string) === "cancelled") return;

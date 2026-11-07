@@ -28,6 +28,16 @@ export interface JobRecord {
   createdAt: string;
   finishedAt: string | null;
   hasResult: boolean;
+  /** Set on the jobs of a parameter sweep (state/sweep.ts). */
+  sweep?: SweepTag;
+}
+
+export interface SweepTag {
+  id: string;
+  /** The swept field, as a dotted path. */
+  param: string;
+  path: (string | number)[];
+  value: number;
 }
 
 const INDEX_KEY = "studio:jobs";
@@ -80,7 +90,7 @@ export interface JobsState {
   shown: string[];
   /** Job whose details (near field, far field, provenance) are shown. */
   active: string | null;
-  submit(operation: Operation, spec: JsonObject, opts?: { label?: string; method?: string; methods?: string[] | null; device?: string }): Promise<JobRecord>;
+  submit(operation: Operation, spec: JsonObject, opts?: { label?: string; method?: string; methods?: string[] | null; device?: string; sweep?: SweepTag }): Promise<JobRecord>;
   cancel(key: string): Promise<void>;
   rerun(key: string): Promise<JobRecord>;
   remove(key: string): void;
@@ -109,7 +119,8 @@ export const useJobs = create<JobsState>((set, get) => {
         void saveResult(rec.key, e.result).then(() => {
           patch(rec.key, { status: "succeeded", progress: 1, hasResult: true, finishedAt: new Date().toISOString() });
           const s = get();
-          set({ shown: [...new Set([...s.shown, rec.key])], active: rec.key });
+          // sweep jobs go to the Sweep tab, not into the overlay of every run
+          if (!rec.sweep) set({ shown: [...new Set([...s.shown, rec.key])], active: rec.key });
         });
         return;
       }
@@ -156,6 +167,7 @@ export const useJobs = create<JobsState>((set, get) => {
         createdAt: state.created_at ?? new Date().toISOString(),
         finishedAt: null,
         hasResult: false,
+        ...(opts.sweep ? { sweep: opts.sweep } : {}),
       };
       const jobs = [rec, ...get().jobs];
       set({ jobs });

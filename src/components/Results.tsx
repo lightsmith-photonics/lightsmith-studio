@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isCompare, isScattering, resultKind, type ResultKind, type AnyResult, type CompareResult, type FarFieldData, type NearFieldData, type ScatteringResult } from "../api/types";
 import { halfExtent } from "../api/mock/solver";
-import { compareCsv, farFieldCsv, nearFieldCsv, spectraCsv } from "../lib/csv";
+import { farFieldCsv, nearFieldCsv, spectraCsv } from "../lib/csv";
 import { exportFile } from "../lib/files";
 import { isObject, type JsonObject } from "../schema/schema";
 import { loadResult, useJobs, type JobRecord } from "../state/jobs";
@@ -270,135 +270,6 @@ function SpectraPanel({ series }: { series: Series[] }) {
   );
 }
 
-/** Compare tab: relative differences of any results on the same wavelength grid. */
-export function CompareView() {
-  const shown = useJobs((s) => s.shown);
-  const jobs = useJobs((s) => s.jobs);
-  const compareJobs = jobs.filter((j) => j.operation === "compare" && j.hasResult).map((j) => j.key);
-  const keys = useMemo(() => [...new Set([...shown, ...compareJobs])], [shown, compareJobs.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { series, compares } = useSeries(keys);
-  const [ref, setRef] = useState<string | null>(null);
-  const [q, setQ] = useState<Q>("c_ext_nm2");
-  const plot = useRef<PlotHandle>(null);
-  const refSeries = series.find((s) => s.key === ref) ?? series.find((s) => s.result.method === "mie") ?? series[0];
-  const others = series.filter((s) => s !== refSeries && refSeries && sameGrid(s.result, refSeries.result));
-  const data = useMemo(
-    () =>
-      others.map((s, i) => ({
-        x: s.result.wavelengths_nm,
-        y: s.result[q].map((v, j) => (100 * (v - refSeries!.result[q][j])) / Math.max(Math.abs(refSeries!.result[q][j]), 1e-300)),
-        name: s.label,
-        mode: "lines+markers",
-        marker: { size: 4 },
-        line: { color: COLORS[(i + 1) % COLORS.length] },
-      })),
-    [others, refSeries, q],
-  );
-  if (series.length < 2)
-    return (
-      <div className="results empty" data-testid="compare-view">
-        <div>
-          <h3>Nothing to compare yet</h3>
-          <p className="muted">Run Compare in the Run panel, or overlay two or more runs with the same wavelengths.</p>
-        </div>
-      </div>
-    );
-  return (
-    <div className="results-main padded" data-testid="compare-view">
-      <div className="row wrap">
-        <h4 className="grow">Relative difference vs reference</h4>
-        <label className="small">
-          reference{" "}
-          <select value={refSeries?.key} onChange={(e) => setRef(e.target.value)} data-testid="compare-ref">
-            {series.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <select value={q} onChange={(e) => setQ(e.target.value as Q)}>
-          <option value="c_ext_nm2">C_ext</option>
-          <option value="c_sca_nm2">C_sca</option>
-          <option value="c_abs_nm2">C_abs</option>
-        </select>
-        <ExportButtons plot={plot} name="relative-difference" />
-      </div>
-      <Plot ref={plot} data={data} layout={{ xaxis: { title: { text: "vacuum wavelength (nm)" } }, yaxis: { title: { text: "(X − ref) / |ref|  (%)" }, tickformat: ".3~g" } }} height={320} testId="compare-plot" />
-      <table className="summary-table" data-testid="compare-table">
-        <thead>
-          <tr>
-            <th>Series</th>
-            <th>max |Δ|/|ref| ext</th>
-            <th>rms ext</th>
-            <th>max sca</th>
-            <th>max abs</th>
-          </tr>
-        </thead>
-        <tbody>
-          {others.map((s) => {
-            const d = (qq: Q) => rel(s.result[qq], refSeries!.result[qq]);
-            return (
-              <tr key={s.key}>
-                <td>{s.label}</td>
-                <td>{pct(d("c_ext_nm2").max)}</td>
-                <td>{pct(d("c_ext_nm2").rms)}</td>
-                <td>{pct(d("c_sca_nm2").max)}</td>
-                <td>{pct(d("c_abs_nm2").max)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {series.some((s) => refSeries && !sameGrid(s.result, refSeries.result)) && <div className="muted small">Runs on a different wavelength grid than the reference are not compared.</div>}
-      {compares.map(({ job, cmp }) => (
-        <div key={job.key} className="panel">
-          <div className="row">
-            <h4 className="grow">
-              Library compare() · {job.label} · reference <code>{cmp.reference}</code>
-            </h4>
-            <button className="small" onClick={() => void exportFile(compareCsv(cmp), "compare.csv", "text/csv")}>
-              CSV
-            </button>
-          </div>
-          <table className="summary-table">
-            <thead>
-              <tr>
-                <th>Method</th>
-                <th>Quantity</th>
-                <th>max</th>
-                <th>rms</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(cmp.relative_difference).flatMap(([m, d]) =>
-                Object.entries(d).map(([qq, v]) => (
-                  <tr key={m + qq}>
-                    <td>{m}</td>
-                    <td>{qq}</td>
-                    <td>{pct(v.max)}</td>
-                    <td>{pct(v.rms)}</td>
-                  </tr>
-                )),
-              )}
-            </tbody>
-          </table>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function sameGrid(a: ScatteringResult, b: ScatteringResult) {
-  return a.wavelengths_nm.length === b.wavelengths_nm.length && a.wavelengths_nm.every((w, i) => Math.abs(w - b.wavelengths_nm[i]) < 1e-6 * Math.max(1, w));
-}
-
-function rel(x: number[], y: number[]) {
-  const r = x.map((v, i) => Math.abs(v - y[i]) / Math.max(Math.abs(y[i]), 1e-300));
-  return { max: Math.max(...r), rms: Math.sqrt(r.reduce((s, v) => s + v * v, 0) / r.length) };
-}
-
-const pct = (x: number) => `${(100 * x).toPrecision(3)} %`;
 
 // --- near field ---------------------------------------------------------------
 

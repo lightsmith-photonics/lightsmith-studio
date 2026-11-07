@@ -34,7 +34,7 @@ MAX_POINTS = 160
 def _write(name: str, obj) -> None:
     path = OUT / name
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, indent=1, default=float) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(obj, indent=1, default=float) + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {path.relative_to(OUT.parent.parent)} ({path.stat().st_size // 1024} kB)")
 
 

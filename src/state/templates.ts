@@ -1,5 +1,6 @@
 // Starting scenes. Each is a plain spec, exactly what `lightsmith solve` reads.
 
+import { FDTD_TEMPLATES } from "../api/mock/snapshots";
 import type { Json, JsonObject } from "../schema/schema";
 
 const Au = { kind: "library", name: "Au", dataset: "Johnson-Christy" };
@@ -125,6 +126,8 @@ export const TEMPLATES: Template[] = [
       illumination: { kind: "plane_wave", direction: [0, 0, -1], polarization: [1, 0, 0] },
     }),
   },
+  // FDTD set-ups, defined in scripts/make_fixtures.py so the library has checked, laid out and solved each one.
+  ...FDTD_TEMPLATES.map((t) => ({ id: t.id, name: t.name, description: t.description, spec: t.spec })),
 ];
 
 export const DEFAULT_SPEC: JsonObject = TEMPLATES[0].spec;

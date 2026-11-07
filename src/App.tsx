@@ -165,7 +165,7 @@ export default function App() {
           />
           <div className="center-body">
             <Suspense fallback={<div className="loading">Loading…</div>}>
-              {ui.centerTab === "scene" && (kind === "scattering" ? <Viewport /> : <KindScene kind={kind} />)}
+              {ui.centerTab === "scene" && (kind === "scattering" || kind === "emission" ? <Viewport /> : <KindScene kind={kind} />)}
               {ui.centerTab === "results" && <ResultsView />}
               {ui.centerTab === "compare" && <CompareView />}
             </Suspense>

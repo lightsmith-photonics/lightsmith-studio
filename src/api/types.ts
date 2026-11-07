@@ -58,6 +58,15 @@ export interface FarFieldData {
   dcsca_domega_nm2: number[][];
 }
 
+/** One resonance of an FDTD ring-down (harmonic inversion): complex frequency with Q = ω / γ. */
+export interface ResonanceData {
+  wavelength_nm: number;
+  energy_ev: number;
+  q: number;
+  /** Relative to the strongest resonance. */
+  amplitude: number;
+}
+
 export interface ScatteringResult {
   kind?: string;
   method: string;
@@ -69,6 +78,7 @@ export interface ScatteringResult {
   equivalent_radius_nm: number;
   near_field?: NearFieldData[] | null;
   far_field?: FarFieldData[] | null;
+  resonances?: ResonanceData[] | null;
   provenance: Record<string, unknown>;
   warnings: string[];
   [k: string]: unknown;
@@ -210,19 +220,97 @@ export interface OptimizationResult extends ResultBase {
   sparameters?: SParameterResult | null;
 }
 
-export type ResultKind = "cross_sections" | "spectrum" | "modes" | "sparameters" | "bands" | "optimization" | "unknown";
+export interface RadiationPatternData {
+  wavelength_nm: number;
+  theta_deg: number[];
+  phi_deg: number[];
+  /** Radiated power per steradian over P0, [theta][phi]; integrates to `radiative`. */
+  dp_domega: number[][];
+}
+
+/** Dipole emission near particles, relative to the same dipole in the medium alone (lightsmith EmissionResult). */
+export interface EmissionResult extends ResultBase {
+  kind: "emission";
+  wavelengths_nm: number[];
+  /** Total decay-rate enhancement: emitted power / P0. */
+  purcell: number[];
+  /** Power reaching the far field / P0. */
+  radiative: number[];
+  /** radiative / purcell. */
+  efficiency: number[];
+  radiation_pattern?: RadiationPatternData[] | null;
+}
+
+export type ResultKind = "cross_sections" | "spectrum" | "modes" | "sparameters" | "bands" | "optimization" | "emission" | "unknown";
 
 /** Which viewer a result needs: its `kind`, or its shape for results from older servers. */
 export function resultKind(r: unknown): ResultKind {
   if (!r || typeof r !== "object") return "unknown";
   const o = r as Record<string, unknown>;
   const k = o.kind;
-  if (k === "cross_sections" || k === "spectrum" || k === "modes" || k === "sparameters" || k === "bands" || k === "optimization") return k;
+  if (k === "cross_sections" || k === "spectrum" || k === "modes" || k === "sparameters" || k === "bands" || k === "optimization" || k === "emission") return k;
   if (Array.isArray(o.c_ext_nm2)) return "cross_sections";
   if (o.r && o.t && o.a && Array.isArray(o.angles_deg)) return "spectrum";
   if (Array.isArray(o.modes)) return "modes";
   if (Array.isArray(o.s_real)) return "sparameters";
   if (o.frequencies && Array.isArray(o.k_distance)) return "bands";
   if (Array.isArray(o.history)) return "optimization";
+  if (Array.isArray(o.purcell)) return "emission";
   return "unknown";
+}
+
+// --- FDTD layout (proposed library API; API_ASSUMPTIONS.md "Proposed: FDTD layout") ----------
+
+export interface LayoutBox {
+  /** "tfsf", "flux_total", "flux_scattered" (scattering) or "flux_radiated" (emission). */
+  name: string;
+  label: string;
+  lo_nm: number[];
+  hi_nm: number[];
+}
+
+export interface LayoutRegion {
+  source: "auto" | "mesh_override";
+  /** Particle index ("auto") or mesh_override index. */
+  particle?: number;
+  index?: number;
+  lo_nm: number[];
+  hi_nm: number[];
+  spacing_nm: number[];
+}
+
+export interface SymmetryInfo {
+  mirrors: Record<string, string>;
+  reduction: number;
+  planes_nm?: Record<string, number>;
+  skipped?: string;
+}
+
+/** The FDTD simulation layout the library builds for a spec: the whole grid (before any mirror halving). */
+export interface FdtdLayout {
+  backend: string;
+  method: string;
+  problem_kind: string;
+  grid: {
+    kind: "uniform" | "graded";
+    base_spacing_nm: number;
+    shape: number[];
+    cells: number;
+    /** Node planes per axis, nm. */
+    nodes_nm: [number[], number[], number[]];
+    spacing_min_nm: number[];
+    spacing_max_nm: number[];
+    max_ratio?: number;
+  };
+  domain_nm: { lo_nm: number[]; hi_nm: number[] };
+  /** CPML thickness in cells and the inner faces of the absorbing layers. */
+  pml: { cells: number; inner_lo_nm: number[]; inner_hi_nm: number[] };
+  boxes: LayoutBox[];
+  regions: LayoutRegion[];
+  symmetry: SymmetryInfo;
+  /** Cells the run steps (after mirror halving). */
+  run_cells?: number | null;
+  warnings: string[];
+  /** The library's refusal (e.g. a graded grid with a Gaussian beam); the geometry is still drawn. */
+  error: string | null;
 }

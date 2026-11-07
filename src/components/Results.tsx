@@ -13,6 +13,7 @@ import { ExportButtons, Plot, type PlotHandle } from "./Plot";
 import { Tabs } from "./Modal";
 import { fmtNum } from "./Properties";
 import { BandsViewer, ModesViewer, OptimizationViewer, SParamViewer, SpectrumViewer, type Run } from "./viewers/KindResults";
+import { EmissionViewer, ResonanceTable } from "./viewers/EmissionResults";
 
 const COLORS = ["#4f9dff", "#ff8a4c", "#38d39f", "#e45bd0", "#f2c94c", "#8c7bff", "#ff5d5d", "#4cd7e4"];
 const DASH: Record<string, string> = { c_ext_nm2: "solid", c_sca_nm2: "dash", c_abs_nm2: "dot" };
@@ -68,11 +69,12 @@ export function ResultsView() {
   const { series, raw } = useSeries(shown);
   const activeKey = active && withResults.some((j) => j.key === active) ? active : (shown[0] ?? withResults[0]?.key ?? null);
   const { series: activeSeries, raw: activeRaw } = useSeries(activeKey ? [activeKey] : []);
-  const [detail, setDetail] = useState<"near" | "far" | "prov" | "json">("near");
+  const [detail, setDetail] = useState<"near" | "far" | "res" | "prov" | "json">("near");
   const activeJob = withResults.find((j) => j.key === activeKey);
   const activeRes = activeKey ? activeRaw.get(activeKey) : undefined;
   const activeKind = activeRes ? resultKind(isCompare(activeRes) ? Object.values(activeRes.results)[0] : activeRes) : "unknown";
   const otherKind = activeKind !== "cross_sections" && activeKind !== "unknown";
+  const resonanceCount = activeSeries.reduce((n, s) => n + (s.result.resonances?.length ?? 0), 0);
   // Runs of the active result kind: the active job first, then other ticked jobs (compare jobs expand per method).
   const kindRuns = useMemo(() => {
     if (!otherKind || !activeJob || !activeRes) return [];
@@ -130,7 +132,7 @@ export function ResultsView() {
               </button>
             </div>
             <Tabs
-              value={otherKind && (detail === "near" || detail === "far") ? "prov" : detail}
+              value={otherKind && (detail === "near" || detail === "far" || detail === "res") ? "prov" : detail}
               onChange={setDetail}
               tabs={[
                 ...(otherKind
@@ -138,6 +140,7 @@ export function ResultsView() {
                   : [
                       { id: "near" as const, label: "Near field" },
                       { id: "far" as const, label: "Far field" },
+                      { id: "res" as const, label: <>Resonances{resonanceCount ? <span className="badge">{resonanceCount}</span> : null}</> },
                     ]),
                 { id: "prov", label: "Provenance & warnings" },
                 { id: "json", label: "Raw" },
@@ -145,6 +148,7 @@ export function ResultsView() {
             />
             {!otherKind && detail === "near" && <NearFieldPanel series={activeSeries} spec={activeJob.spec} />}
             {!otherKind && detail === "far" && <FarFieldPanel series={activeSeries} />}
+            {!otherKind && detail === "res" && <ResonanceTable runs={activeSeries.map((s) => ({ label: s.label, resonances: s.result.resonances ?? [] }))} />}
             {otherKind && (detail === "near" || detail === "far") && <ProvenancePanel res={activeRes} job={activeJob} />}
             {detail === "prov" && <ProvenancePanel res={activeRes} job={activeJob} />}
             {detail === "json" && <pre className="raw-json">{JSON.stringify(activeRes, (_k, v) => (Array.isArray(v) && v.length > 40 ? `[${v.length} items]` : v), 2)}</pre>}
@@ -167,6 +171,8 @@ function KindViewer({ kind, runs }: { kind: ResultKind; runs: Run<never>[] }) {
       return <BandsViewer runs={runs} />;
     case "optimization":
       return <OptimizationViewer runs={runs} />;
+    case "emission":
+      return <EmissionViewer runs={runs} />;
     default:
       return null;
   }

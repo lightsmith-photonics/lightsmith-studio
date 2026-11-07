@@ -8,10 +8,12 @@ import { epsAt } from "../../physics/materials";
 import { amplitudes, depolarization, mieCoefficients, spheroidPolarizability } from "../../physics/mie";
 import { isObject, type Json, type JsonObject } from "../../schema/schema";
 import type { BackendInfo, Estimate, FarFieldData, NearFieldData, ScatteringResult, SupportInfo } from "../types";
+import { fdtdSnapshot } from "./snapshots";
 
 export const MOCK_BACKENDS = backendsJson as unknown as BackendInfo[];
 export const MOCK_WARNING = "mock server: approximate in-browser physics, not a real solver backend";
 export const CANNED_WARNING = "mock server: this is the library's solved EXAMPLE for this problem kind, not a solution of your spec";
+export const SNAPSHOT_WARNING = "mock server: the library's FDTD solution of this exact spec, from Studio's snapshot (scripts/make_fixtures.py)";
 
 const AUTO_ORDER: Record<string, string[]> = {
   scattering: ["mie", "tmatrix", "dda", "fdtd"],
@@ -21,6 +23,7 @@ const AUTO_ORDER: Record<string, string[]> = {
   device: ["eme", "fdfd", "fdtd"],
   bands: ["pwe", "fdfd"],
   circuit: ["circuit"],
+  emission: ["mie", "fdtd"],
 };
 
 type Particle = { shape: JsonObject; material: Json; position_nm: number[] };
@@ -113,16 +116,30 @@ function unit(v: number[]): number[] {
 export function supportsMock(spec: JsonObject, b: BackendInfo): { ok: boolean; why: string } {
   const kind = problemKind(spec);
   if (b.problem_kinds && !b.problem_kinds.includes(kind)) return { ok: false, why: `solves ${JSON.stringify(b.problem_kinds)}, not '${kind}'` };
+  // Mie emission, as the library's NativeMie._supports_emission (in its order).
+  if (kind === "emission" && b.method === "mie") {
+    const ps = particles(spec);
+    if (ps.length !== 1 || !["sphere", "layered_sphere"].includes(String(ps[0].shape?.kind))) return { ok: false, why: "Mie emission needs exactly one sphere (plain or layered); use 'fdtd'" };
+    const d = isObject(spec.dipole) && Array.isArray(spec.dipole.position_nm) ? (spec.dipole.position_nm as number[]) : [0, 0, 0];
+    if (Math.hypot(...d.map((x, i) => x - ps[0].position_nm[i])) <= Math.max(...halfExtent(ps[0].shape)) * (1 + 1e-9)) return { ok: false, why: "Mie emission needs the dipole outside the sphere; use 'fdtd'" };
+    if (isObject(spec.radiation_pattern)) return { ok: false, why: "Mie emission does not compute radiation patterns yet; use 'fdtd'" };
+    return { ok: true, why: "" };
+  }
   // Other problem kinds: the mock has no per-backend rules; every backend of the kind applies.
   if (kind !== "scattering") return { ok: true, why: "" };
   const ps = particles(spec);
   const out = isObject(spec.outputs) ? spec.outputs : {};
   const near = isObject(out.near_field);
   const far = isObject(out.far_field);
-  const missing = (opts: { near?: boolean; far?: boolean; substrate?: boolean; oa?: boolean }) => {
+  const beam = isObject(spec.illumination) && spec.illumination.kind === "gaussian_beam";
+  const res = isObject(out.resonances);
+  // The library's unsupported_outputs (backends/base.py), in its order.
+  const missing = (opts: { near?: boolean; far?: boolean; substrate?: boolean; oa?: boolean; beam?: boolean; res?: boolean }) => {
     const m: string[] = [];
     if (near && !opts.near) m.push("near_field output");
     if (far && !opts.far) m.push("far_field output");
+    if (beam && !opts.beam) m.push("gaussian_beam illumination");
+    if (res && !opts.res) m.push("resonances output (time-domain solvers only)");
     if (isObject(spec.substrate) && !opts.substrate) m.push("substrate");
     if (spec.orientation_average === true && !opts.oa) m.push("orientation_average");
     return m.length ? "does not support " + m.join(", ") : "";
@@ -149,6 +166,10 @@ export function supportsMock(spec: JsonObject, b: BackendInfo): { ok: boolean; w
       return { ok: !why, why };
     }
     default: {
+      if (b.method === "fdtd") {
+        const why = missing({ near: true, far: true, substrate: true, beam: true, res: true });
+        return { ok: !why, why };
+      }
       if (b.method === "dda") {
         const why = missing({ near: true, far: true, oa: true }) || fieldsWithOA();
         return { ok: !why, why };
@@ -217,6 +238,23 @@ export function estimateMock(spec: JsonObject, method: string, device: string): 
   if (problemKind(spec) !== "scattering") return { backend: b.name, method: b.method, ...dev, note: "mock server: no size estimate for this problem kind" };
   const wl = wavelengthArray(spec);
   if (b.method === "mie") return { backend: b.name, method: b.method, ...dev, cost: "negligible", memory_bytes: 0 };
+  const snap = b.method === "fdtd" ? fdtdSnapshot(spec) : undefined;
+  if (snap) {
+    // The library's own numbers for this exact spec (its layout; see scripts/fdtd_layout.py).
+    const L = snap.layout;
+    const half = L.symmetry.reduction > 1;
+    return {
+      backend: b.name,
+      method: b.method,
+      ...dev,
+      grid: L.grid.shape,
+      cells: L.run_cells ?? L.grid.cells,
+      spacing_nm: L.grid.base_spacing_nm,
+      symmetry: L.symmetry as unknown as Json,
+      ...(L.grid.kind === "graded" ? { graded_grid: { kind: "graded", spacing_min_nm: L.grid.spacing_min_nm, spacing_max_nm: L.grid.spacing_max_nm, max_ratio: L.grid.max_ratio ?? null, base_spacing_nm: L.grid.base_spacing_nm } } : {}),
+      note: `mock server: the library's layout of this template${half ? " (the run steps one mirror image of the grid)" : ""}`,
+    };
+  }
   const ps = particles(spec);
   const opts = { ...((spec.options as JsonObject)?.[b.method] as JsonObject), ...((spec.options as JsonObject)?.[b.name] as JsonObject) };
   if (b.method === "dda") {
@@ -254,6 +292,9 @@ export function solveMock(spec: JsonObject, method: string, device: string, onPr
   const kind = problemKind(spec);
   if (kind !== "scattering") throw new Error(`the mock server has no solver for problem kind '${kind}'; connect to a compute server`);
   const b = resolveBackend(spec, method);
+  // (the FDTD templates' own solutions are served by MockComputeClient, from fixtures/fdtd)
+  if (b.method === "fdtd" && (isObject(spec.illumination) && spec.illumination.kind === "gaussian_beam" || isObject((spec.outputs as JsonObject)?.resonances)))
+    throw new Error("the mock server cannot compute Gaussian beams or resonances; connect to a compute server (the FDTD templates as shipped do have the library's results)");
   const t0 = performance.now();
   const wl = wavelengthArray(spec);
   const nm = Number(spec.medium_index ?? 1);

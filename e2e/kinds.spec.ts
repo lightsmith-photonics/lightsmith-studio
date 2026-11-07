@@ -12,6 +12,7 @@ const KINDS: { kind: string; scene: string; viewer?: string; plot?: string }[] =
   { kind: "bands", scene: "cross-section", viewer: "bands-viewer", plot: "bands-plot" },
   { kind: "circuit", scene: "netlist", viewer: "sparam-viewer", plot: "sparam-plot" },
   { kind: "optimization", scene: "cross-section", viewer: "design-view", plot: "design-plot" },
+  { kind: "emission", scene: "viewport", viewer: "emission-viewer", plot: "emission-plot" },
 ];
 
 async function newProject(page: Page, kind: string) {

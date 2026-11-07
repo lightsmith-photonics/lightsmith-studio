@@ -13,6 +13,8 @@ import { deleteSelection, duplicateSelection } from "../state/actions";
 import { PARTICLE_PRESETS } from "../state/templates";
 import { shapeLabel } from "./ObjectTree";
 import { OVERRIDES, SpecForm, useIssueMap } from "./SpecForm";
+import { fdtdOptions, meshOverrides, selectedOverride } from "../state/fdtd";
+import { useLayout } from "../state/layout";
 
 export function Properties() {
   const selection = useSpec((s) => s.selection) ?? [];
@@ -27,6 +29,7 @@ export function Properties() {
   else if (head === "wavelengths") body = <WavelengthsEditor />;
   else if (head === "substrate") body = <SubstrateEditor />;
   else if (head === "outputs") body = <OutputsEditor focus={selection[1] as string | undefined} />;
+  else if (selectedOverride(selection) != null) body = <MeshOverrideEditor index={selectedOverride(selection)!} />;
   else if (head === "options") body = <OptionsEditor />;
   else body = <SpecForm path={selection} label={prettyKey(String(selection[selection.length - 1]))} />;
   return (
@@ -218,7 +221,20 @@ function EnvironmentEditor() {
           ))}
         </div>
       </Section>
-      <Section title="Plane-wave illumination">
+      <Section title={ill.kind === "gaussian_beam" ? "Gaussian-beam illumination" : "Plane-wave illumination"}>
+        <div className="chips" role="radiogroup" aria-label="illumination kind">
+          <button className={ill.kind !== "gaussian_beam" ? "chip active" : "chip"} onClick={() => ill.kind === "gaussian_beam" && apply({ op: "replace", path: ["illumination"], value: { kind: "plane_wave", direction: k, polarization: e } })} data-testid="ill-plane">
+            Plane wave
+          </button>
+          <button
+            className={ill.kind === "gaussian_beam" ? "chip active" : "chip"}
+            onClick={() => ill.kind !== "gaussian_beam" && apply({ op: "replace", path: ["illumination"], value: { kind: "gaussian_beam", direction: k, polarization: e, waist_nm: 1000, focus_nm: [0, 0, 0] } })}
+            data-testid="ill-beam"
+            title="A focused beam: its angular spectrum of plane waves (FDTD only)"
+          >
+            Gaussian beam
+          </button>
+        </div>
         <div className="field-row">
           <label className="field-label">Direction</label>
           <div className="field-input chips">
@@ -394,6 +410,70 @@ function OutputsEditor(props: { focus?: string }) {
 
 function range(a: number, b: number, n: number): number[] {
   return Array.from({ length: n }, (_, i) => Number((a + ((b - a) * i) / (n - 1)).toPrecision(10)));
+}
+
+// --- FDTD mesh overrides --------------------------------------------------------------
+
+/** A mesh-override box: the generated form of the FDTD options model's MeshOverride, plus cell counts. */
+function MeshOverrideEditor(props: { index: number }) {
+  const spec = useSpec((s) => s.spec);
+  const apply = useSpec((s) => s.apply);
+  const select = useSpec((s) => s.select);
+  const backends = useConnection((s) => s.backends);
+  const issues = useIssueMap();
+  const layout = useLayout((s) => s.layout);
+  const box = meshOverrides(spec).find((b) => b.index === props.index);
+  if (!box) return <div className="muted">No mesh override {props.index + 1}</div>;
+  const os = backends.find((b) => b.method === "fdtd" && b.options_schema)?.options_schema ?? null;
+  const doc = os ? new SchemaDoc(os) : null;
+  const node = doc ? doc.resolve({ $ref: "#/$defs/MeshOverride" }) : null;
+  const value = getAt(spec, box.path);
+  const opts = fdtdOptions(spec);
+  const particles = ((spec.particles as Json[]) ?? []).filter(isObject) as JsonObject[];
+  const fitParticles = () => {
+    if (!particles.length) return;
+    const lo = [0, 1, 2].map((i) => Math.min(...particles.map((p) => ((p.position_nm as number[]) ?? [0, 0, 0])[i] - halfExtent(p.shape as JsonObject)[i])));
+    const hi = [0, 1, 2].map((i) => Math.max(...particles.map((p) => ((p.position_nm as number[]) ?? [0, 0, 0])[i] + halfExtent(p.shape as JsonObject)[i])));
+    apply([
+      { op: "replace", path: [...box.path, "center_nm"], value: lo.map((l, i) => Number(((l + hi[i]) / 2).toPrecision(8))) },
+      { op: "replace", path: [...box.path, "size_nm"], value: lo.map((l, i) => Number((hi[i] - l).toPrecision(8))) },
+    ]);
+  };
+  const region = layout?.regions.find((r) => r.source === "mesh_override" && r.index === props.index);
+  return (
+    <>
+      <Section
+        title={`Mesh override ${props.index + 1}`}
+        right={
+          <>
+            <button className="small" onClick={fitParticles} title="Cover every particle's bounding box">
+              Fit particles
+            </button>
+            <button className="small danger" onClick={() => (apply({ op: "remove", path: box.path }), select(["options"]))}>
+              Delete
+            </button>
+          </>
+        }
+      >
+        <p className="muted small">
+          FDTD refines the grid to <code>spacing_nm</code> inside this box and grades back to the base cells (<code>spacing_nm</code> option{typeof opts.spacing_nm === "number" ? `: ${opts.spacing_nm} nm` : ", or the uniform rule"}) no faster than{" "}
+          <code>grading_ratio</code> ({String(opts.grading_ratio ?? 1.25)}). Drag it in the 3D view with the move gizmo. Scattering problems with plane-wave illumination only.
+        </p>
+        {doc && node ? (
+          <SchemaForm doc={doc} node={node} value={value ?? {}} path={box.path} issues={issues} overrides={OVERRIDES} onChange={(path, v) => apply({ op: "replace", path, value: v }, { coalesceKey: path.join("/") })} />
+        ) : (
+          <SpecForm path={box.path} label="Mesh override" />
+        )}
+        <div className="muted small derived" data-testid="override-cells">
+          {box.size.map((s, i) => `${"xyz"[i]}: ${fmtNum(s / box.spacing[i])} cells`).join(" · ")}
+          {region ? ` · the library's region: ${region.lo_nm.map(fmtNum).join(", ")} → ${region.hi_nm.map(fmtNum).join(", ")} nm` : ""}
+        </div>
+      </Section>
+      <button className="link" onClick={() => select(["options"])}>
+        All FDTD options (spacing, grid, grading ratio, symmetry…)
+      </button>
+    </>
+  );
 }
 
 // --- solver options ----------------------------------------------------------------

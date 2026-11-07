@@ -22,6 +22,7 @@ export const KIND_META: Record<string, KindMeta> = {
   bands: { label: "Photonic bands", icon: "≋", blurb: "Photonic-crystal band structure along a k-path (PWE).", result: "bands" },
   circuit: { label: "Circuits", icon: "⌁", blurb: "Netlists of compact models: circuit S-parameters.", result: "sparameters" },
   optimization: { label: "Inverse design", icon: "✦", blurb: "Topology-optimise a device's design region for an S-parameter objective.", result: "optimization" },
+  emission: { label: "Dipole emission", icon: "✺", blurb: "A point dipole near particles: Purcell factor, radiative decay, efficiency and radiation pattern (Mie, FDTD).", result: "emission" },
 };
 
 export function kindMeta(kind: string, schemaTitle?: string): KindMeta {

@@ -22,7 +22,7 @@ the library appears automatically, with generated editors.
 
 | Kind | Scene editor | Result viewer |
 |---|---|---|
-| `scattering` | 3D viewport: particles to scale, move gizmo, substrate, k/E arrows, near-field plane | spectra (C or Q; ext/sca/abs), compare, near-field heatmap, far-field polar/3D |
+| `scattering` | 3D viewport: particles to scale, move gizmo, substrate, k/E arrows, near-field plane; FDTD layout (TFSF box, flux boxes, CPML, mirror planes, mesh overrides, Gaussian-beam focus and waist) and mesh slice | spectra (C or Q; ext/sca/abs), compare, near-field heatmap, far-field polar/3D, resonance (Q) table |
 | `layer_stack` | layer stack editor: add from presets, reorder, remove; superstrate and substrate; n at mid-band | R/T/A vs λ per angle and polarization, R/T/A vs angle map |
 | `periodic` | patterned-layer stack, plus a 2D unit-cell editor with neighbouring cells shown | R/T/A plus diffraction-order efficiencies |
 | `mode` | 2D cross-section editor: drag structures, simulation window | n_eff/n_g/loss/TE-fraction/A_eff table, n_eff(λ), field heatmaps (\|E\|², \|H\|², components) with outlines |
@@ -30,10 +30,14 @@ the library appears automatically, with generated editors.
 | `bands` | unit-cell editor with lattice vectors and tiled neighbours; 3D crystals shown in top view | band diagram with k labels, gaps shaded per polarization and complete gaps, gap table (a/λ and nm) |
 | `circuit` | netlist graph: instances, connections, external ports | S-parameters, as for devices |
 | `optimization` | the device top view plus hatched design regions | objective and binarization history, S-parameters of the final design |
+| `emission` | the 3D viewport: particles, and the dipole with its moment (move gizmo); FDTD layout and mesh slice | Purcell factor, radiative and non-radiative decay vs λ (linear or log), quantum efficiency, radiation-pattern polar cuts |
 
 - **Starting points.** Every kind has an *Example*, which the library solved when the snapshot was
   taken (`scripts/make_fixtures.py`), and a *Blank* start from schema defaults. Scattering also has
-  eight templates: sphere, dimer, core–shell, rod, spheroid, trimer, Si sphere, and sphere on glass.
+  eight templates (sphere, dimer, core–shell, rod, spheroid, trimer, Si sphere, sphere on glass) and four
+  FDTD set-ups that the library has laid out and solved: a dimer gap with a mesh override and two mirror
+  planes, a graded-grid plasmon ring-down with its resonances, a focused Gaussian beam, and a sphere on glass
+  at 45°.
 - **Editing in the scene.** Clicking an object in the scene selects it in the object tree. Its
   Properties panel shows the generated form, with the material picker for every material field.
   Drags are undoable spec ops.
@@ -49,6 +53,56 @@ the library appears automatically, with generated editors.
   form `?spec=`, `?spec_url=` and `lightsmith-studio://open?spec=`. "Copy as Python / CLI / curl /
   MCP" is available, and `window.studio` scripting with a live JSON panel.
 
+## FDTD set-up
+
+![FDTD layout: graded grid, mesh override, mirror planes](docs/screenshots/fdtd-layout.png)
+
+For scattering and emission problems the 3D view draws the FDTD simulation objects, the way a commercial FDTD
+CAD tool does, but without computing any of them itself.
+
+- **Objects from the spec**, editable in place:
+  - mesh-override boxes (`options.fdtd.mesh_override`), listed in the object tree, moved with the gizmo like
+    particles, edited with the generated form of the library's `MeshOverride` model. The form shows cell
+    counts and the region the library actually refines;
+  - the Gaussian beam: focus, waist ring, axis, and the paraxial 1/e² envelope in the E and H planes. The
+    environment editor switches plane wave ↔ Gaussian beam;
+  - the emission dipole and its moment, moved with the gizmo.
+- **Objects from the library's layout**, shown with the **FDTD layout** toggle (on when the spec has FDTD
+  options, the method is FDTD, or only FDTD can run it):
+  - TFSF box, total-field and scattered-field flux boxes (the radiated-power box for emission);
+  - CPML slabs and thickness;
+  - regions refined by `grid: "auto"`;
+  - the PEC/PMC mirror planes `symmetry: "auto"` picks, with the run's size reduction and why other planes
+    were not used;
+  - the legend: grid kind, shape, cells (and cells after halving), cell sizes, grading ratio, and the
+    library's refusal when it would not run the spec (for example a graded grid with a Gaussian beam).
+- **Mesh preview.** *mesh* picks an xy, xz or yz slice and its position, and draws the library's Yee node
+  planes on it, bright where cells are fine. *⟂ view* looks along the slice. Particles turn translucent so the
+  grid shows through.
+
+![Mesh slice through the dimer gap](docs/screenshots/fdtd-mesh.png)
+
+Where the layout comes from (`src/state/layout.ts`):
+1. the compute server's `POST /v1/layout`, which Studio proposes to the library (see API_ASSUMPTIONS.md,
+   "Proposed: FDTD layout");
+2. in development, the Vite dev server's **library bridge**: it runs `scripts/fdtd_layout.py` against
+   `../lightsmith` (needs `uv`; off with `STUDIO_LIBRARY_BRIDGE=0`). That script is the reference
+   implementation of the proposal, built on the library's own planning code;
+3. the server's `POST /v1/estimate`, which gives the mirror planes only;
+4. in the mock, the snapshot of the FDTD templates as shipped.
+
+While a new layout is on its way, the last one stays on screen, marked "before your last edit". A spec the
+library would refuse is still drawn, with its reason: below, a Gaussian beam with a mesh override and
+`symmetry: "auto"` (graded grids take plane waves only, and beams run without mirror planes), laid out
+through the library bridge (`e2e/fdtd-library.spec.ts`).
+
+![Gaussian beam with a mesh override: drawn, with the library's refusal](docs/screenshots/fdtd-beam-override.png)
+
+| | |
+|---|---|
+| ![Gaussian beam](docs/screenshots/fdtd-beam.png) | ![Resonance table](docs/screenshots/fdtd-resonances.png) |
+| A focused beam: focus, waist and envelope; the legend says why the run uses no mirror planes. | The ring-down of a plasmonic sphere: resonance wavelengths, Q, linewidths, amplitudes. |
+
 ## Run it (web, development)
 
 ```bash
@@ -63,6 +117,8 @@ uses the **built-in mock server** and says so in the status bar. In the mock:
   <0.5 %), quasi-static otherwise.
 - Every other kind answers with the library's solved example for that kind. The result carries a
   warning saying it is not a solution of your spec.
+- The FDTD templates, unedited, get the library's own FDTD solution and layout from the snapshot. Gaussian
+  beams and resonances of any other spec need a compute server.
 
 **Against a real local server:**
 
@@ -192,13 +248,16 @@ Embedding pages can `postMessage({studio: "getSpec"|"setSpec"|"apply"|"validate"
   schema, and that every solved example's result kind has a viewer.
 - **Snapshot.** `npm run sync:library` refreshes the library snapshot: schema, backends with options
   schemas, and bundled n/k data. `uv run --project ../lightsmith python scripts/make_fixtures.py`
-  re-solves the per-kind examples. It is slow: RCWA takes minutes.
+  re-solves the per-kind examples, and lays out and solves the FDTD templates
+  (`src/generated/fdtd_templates.json`, `fixtures/fdtd/`; on the GPU when there is one). It is slow: RCWA
+  takes minutes. `make_fixtures.py fdtd emission` redoes only those.
 
 ## Tests
 
 ```bash
-npm test                                   # Vitest: logic, parity, kinds, auth, config
-npm run test:e2e                           # Playwright, against the mock: scattering flows + every problem kind
+npm test                                   # Vitest: logic, parity, kinds, FDTD snapshots, auth, config
+npm run test:e2e                           # Playwright, against the mock: scattering flows, FDTD set-up, every problem kind
+STUDIO_LIBRARY_BRIDGE=1 npx playwright test fdtd-library   # FDTD layouts from ../lightsmith through the dev-server bridge
 STUDIO_COMPUTE_URL=http://localhost:8200 npx playwright test real-server   # against a live compute server
 ```
 
@@ -211,9 +270,10 @@ src/config/      brand.ts (names), runtime.ts (deployment config)
 src/schema/      schema helpers, generated form, validation
 src/state/       spec store (undo/redo, ops), connection, jobs, kinds, templates, actions
 src/api/         compute + materials clients, in-browser mock server
-src/components/  viewport (3D), kinds/ (2D/stack/netlist scenes), viewers/ (result kinds), panels, dialogs
+src/components/  viewport (3D), fdtd/ (FDTD objects in 3D), kinds/ (2D/stack/netlist scenes), viewers/ (result kinds), panels, dialogs
 src/lib/         auth (OIDC / Community), codegen, deep links, files, CSV, scripting
-src/generated/   library snapshot and solved examples
+src/generated/   library snapshot, solved examples, FDTD templates with their layouts
+scripts/         sync_library.py, make_fixtures.py, fdtd_layout.py (the library's FDTD layout of a spec)
 docker/          nginx template, runtime-config entrypoint
 src-tauri/       desktop shell
 e2e/             Playwright flows

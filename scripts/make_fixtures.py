@@ -300,12 +300,22 @@ def fdtd_templates() -> None:
     print(f"wrote {path.name} ({path.stat().st_size // 1024} kB)")
 
 
+# Studio's default scene (src/state/templates.ts, "Gold sphere"): plain cross sections, so every scattering
+# backend can preview it. Keep it identical to the TypeScript template (src/test/solvers.test.ts checks).
+DEFAULT_SPHERE = {"kind": "scattering", "schema_version": "0.1", "medium_index": 1.33,
+                  "illumination": {"kind": "plane_wave", "direction": [0, 0, 1], "polarization": [1, 0, 0]},
+                  "wavelengths": {"start_nm": 400, "stop_nm": 800, "num": 81},
+                  "particles": [{"shape": {"kind": "sphere", "radius_nm": 40},
+                                 "material": {"kind": "library", "name": "Au", "dataset": "Johnson-Christy"},
+                                 "position_nm": [0, 0, 0]}]}
+
+
 def layout_snapshots() -> None:
     """Every example's layout for every backend that can run it (the mock's Preview tab)."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from solver_layout import layout
 
-    entries = [*SPECS.values(), *[t["spec"] for t in FDTD_TEMPLATES]]
+    entries = [*SPECS.values(), *[t["spec"] for t in FDTD_TEMPLATES], DEFAULT_SPHERE]
     out = []
     for spec in entries:
         problem = parse_problem(spec)

@@ -356,6 +356,7 @@ export function JobList() {
                   <button
                     className="small"
                     onClick={() => {
+                      if (r.sweep) return setTab("sweep"); // sweeps have their own tab
                       j.setActive(r.key);
                       j.toggleShown(r.key, true);
                       setTab("results");

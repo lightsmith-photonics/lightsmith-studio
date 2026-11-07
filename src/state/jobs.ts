@@ -37,7 +37,10 @@ export interface SweepTag {
   /** The swept field, as a dotted path. */
   param: string;
   path: (string | number)[];
-  value: number;
+  /** One job per value: this job's value. */
+  value?: number;
+  /** One server sweep job: every value. */
+  values?: number[];
 }
 
 const INDEX_KEY = "studio:jobs";
@@ -147,7 +150,7 @@ export const useJobs = create<JobsState>((set, get) => {
       const device = opts.device ?? conn.device;
       const methods = operation === "compare" ? (opts.methods ?? (conn.compareMethods.length ? conn.compareMethods : null)) : null;
       const label = opts.label ?? defaultLabel(operation, method, methods, spec);
-      const req: JobRequest = { operation, spec, method, device, label, ...(operation === "compare" ? { methods } : {}) };
+      const req: JobRequest = { operation, spec, method, device, label, ...(operation === "compare" ? { methods } : {}), ...(operation === "sweep" && opts.sweep ? { sweep: { path: opts.sweep.path, values: opts.sweep.values ?? [] } } : {}) };
       const state = await client.submit(req);
       const rec: JobRecord = {
         key: `${client.kind}:${state.id}`,

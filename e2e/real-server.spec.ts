@@ -35,7 +35,7 @@ test.beforeEach(async ({ page }) => {
 test("live: supports reasons, estimate, solve with near field, compare", async ({ page }) => {
   test.setTimeout(900_000);
   await page.getByTestId("right-tabs").getByTestId("tab-run").click();
-  await expect(page.locator('[data-testid^="support-"][data-testid$="-mie"]')).toContainText("supported", { timeout: 30_000 });
+  await expect(page.locator('[data-testid^="support-"][data-testid$="-mie"]')).toContainText("supported", { timeout: 120_000 }); // a cold server imports every backend first
   await expect(page.getByTestId("support-miepython")).toContainText("near_field", { timeout: 30_000 });
 
   await page.getByTestId("method-select").selectOption("dda");
@@ -79,4 +79,39 @@ test("live: a thin-film stack solves and shows R/T/A", async ({ page }) => {
   await expect(page.getByText("solved EXAMPLE")).toHaveCount(0);
   await page.waitForTimeout(500);
   await page.screenshot({ path: "docs/screenshots/live-server-layer-stack.png" });
+});
+
+test("live: Preview from POST /v1/discretization, for several solvers", async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.getByTestId("center-tabs").getByTestId("tab-preview").click();
+  for (const [backend, text] of [
+    ["lightsmith-dda", "dipoles"],
+    ["lightsmith-bem", "triangles"],
+    ["lightsmith-mie", "multipole order"],
+    ["lightsmith-fdtd", "CPML cells"],
+  ] as const) {
+    await page.getByTestId("preview-backend").selectOption(backend);
+    await expect(page.getByTestId("preview-summary")).toContainText(text, { timeout: 120_000 });
+    await expect(page.getByTestId("preview-source")).toContainText("(server)");
+  }
+  await page.getByTestId("preview-backend").selectOption("lightsmith-dda");
+  await expect(page.getByTestId("preview-plot")).toHaveAttribute("data-ready", "true", { timeout: 60_000 });
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: "docs/screenshots/live-server-preview.png" });
+});
+
+test("live: a parameter sweep runs as one server job", async ({ page }) => {
+  test.setTimeout(600_000);
+  await page.getByTestId("right-tabs").getByTestId("tab-run").click();
+  await page.getByTestId("method-select").selectOption("lightsmith-mie");
+  await page.getByTestId("sweep-setup").locator("summary").click();
+  await page.getByTestId("sweep-param").selectOption("particles.0.shape.radius_nm");
+  await page.getByTestId("sweep-start").fill("30");
+  await page.getByTestId("sweep-stop").fill("50");
+  await page.getByTestId("sweep-num").fill("3");
+  await page.getByTestId("sweep-run").click();
+  await expect(page.getByTestId("sweep-view")).toContainText("one server job");
+  await expect(page.getByTestId("sweep-view")).toContainText("3/3 done", { timeout: 300_000 });
+  await expect(page.getByTestId("sweep-table").locator("tbody tr")).toHaveCount(3);
+  await expect(page.getByTestId("job")).toHaveCount(1);
 });

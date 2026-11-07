@@ -93,7 +93,7 @@ export interface CompareResult {
   relative_difference: Record<string, Record<string, { max: number; rms: number }>>;
 }
 
-export type Operation = "solve" | "compare" | "estimate";
+export type Operation = "solve" | "compare" | "estimate" | "sweep";
 export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
 
 export interface JobRequest {
@@ -104,6 +104,22 @@ export interface JobRequest {
   device?: string;
   reference?: string | null;
   label?: string | null;
+  /** sweep: the swept field (JSON path) and its values (compute API `kind: "sweep"`). */
+  sweep?: { path: (string | number)[]; values: number[] } | null;
+}
+
+/** The result of a sweep job: one result per value (null where that solve failed). */
+export interface SweepResult {
+  kind: "sweep";
+  path: (string | number)[];
+  values: number[];
+  method: string;
+  results: (AnyResult | null)[];
+  errors: Record<string, { error: string; message: string }>;
+}
+
+export function isSweep(r: unknown): r is SweepResult {
+  return !!r && typeof r === "object" && (r as SweepResult).kind === "sweep" && Array.isArray((r as SweepResult).results);
 }
 
 export interface JobState {
@@ -259,9 +275,9 @@ export function resultKind(r: unknown): ResultKind {
   return "unknown";
 }
 
-// --- solver layouts (proposed library API; API_ASSUMPTIONS.md "Proposed: solver layouts") ----------
+// --- solver layouts (lightsmith.discretization; API_ASSUMPTIONS.md "Solver layouts") ----------
 
-export type LayoutKind = "yee_grid" | "device_grid" | "dipole_lattice" | "surface_mesh" | "multipoles" | "harmonics" | "cross_section_grid" | "cells" | "plane_waves" | "none";
+export type LayoutKind = "yee_grid" | "unit_cell" | "device_grid" | "dipole_lattice" | "surface_mesh" | "multipoles" | "harmonics" | "cross_section_grid" | "cells" | "plane_waves" | "none";
 
 /** What a backend will discretise for a spec, before any solve: a common envelope and a per-solver payload. */
 export interface SolverLayout {

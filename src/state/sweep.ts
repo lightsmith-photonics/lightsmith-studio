@@ -3,7 +3,9 @@
 // the library validates and solves; Studio only groups them (JobRecord.sweep) and reduces their curves.
 
 import type { BackendInfo } from "../api/types";
-import { clone, isObject, SchemaDoc, type Json, type JsonObject, type JSONSchema, type Path } from "../schema/schema";
+import { isObject, SchemaDoc, type Json, type JsonObject, type JSONSchema, type Path } from "../schema/schema";
+import { withValue } from "../lib/specPath";
+import { ApiError } from "../api/types";
 import { validateProblem } from "../schema/validate";
 import { useConnection } from "./connection";
 import { useJobs, type JobRecord } from "./jobs";
@@ -67,19 +69,7 @@ export function sweepParams(spec: JsonObject, backends: BackendInfo[], method: s
   return [...out, ...optionNumbers(spec, backends, method)];
 }
 
-/** A copy of `spec` with `value` at `path`, creating missing objects (options[method] for a new option). */
-export function withValue(spec: JsonObject, path: Path, value: number): JsonObject {
-  const s = clone(spec) as JsonObject;
-  let o: JsonObject | Json[] = s;
-  for (let i = 0; i < path.length - 1; i++) {
-    const k = path[i] as never;
-    const next = (o as Record<string, Json>)[k];
-    if (!isObject(next ?? null) && !Array.isArray(next)) (o as Record<string, Json>)[k] = typeof path[i + 1] === "number" ? [] : {};
-    o = (o as Record<string, Json>)[k] as JsonObject;
-  }
-  (o as Record<string, Json>)[path[path.length - 1] as never] = value;
-  return s;
-}
+export { withValue } from "../lib/specPath";
 
 export function linspace(a: number, b: number, n: number, integer = false): number[] {
   const v = n <= 1 ? [a] : Array.from({ length: n }, (_, i) => a + ((b - a) * i) / (n - 1));
@@ -94,27 +84,29 @@ export interface SweepRequest {
   method: string;
 }
 
-/** Submit one solve per value. Specs the schema rejects are skipped and reported. Returns the sweep id. */
-export async function runSweep(req: SweepRequest): Promise<{ id: string; jobs: JobRecord[]; skipped: number[] }> {
+/**
+ * Run a sweep. Values the schema rejects are skipped and reported. On a compute server with sweep jobs
+ * (`kind: "sweep"`) it is one job; otherwise (older servers) one solve job per value. Returns the sweep id.
+ */
+export async function runSweep(req: SweepRequest): Promise<{ id: string; jobs: JobRecord[]; skipped: number[]; serverSweep: boolean }> {
   const id = `sweep-${Date.now().toString(36)}`;
   const doc = useConnection.getState().schema;
-  const jobs: JobRecord[] = [];
   const skipped: number[] = [];
-  const name = String(req.param.path[req.param.path.length - 1]);
-  for (const v of req.values) {
-    const spec = withValue(req.spec, req.param.path, v);
-    if (validateProblem(doc, spec).length) {
-      skipped.push(v);
-      continue;
-    }
-    jobs.push(
-      await useJobs.getState().submit("solve", spec, {
-        method: req.method,
-        label: `${name} = ${v}`,
-        sweep: { id, param: req.param.label, path: req.param.path, value: v },
-      }),
-    );
-  }
+  const ok: number[] = [];
+  for (const v of req.values) (validateProblem(doc, withValue(req.spec, req.param.path, v)).length ? skipped : ok).push(v);
   if (skipped.length) toast(`Skipped ${skipped.length} value${skipped.length > 1 ? "s" : ""} the schema rejects: ${skipped.join(", ")}`, "warn");
-  return { id, jobs, skipped };
+  if (!ok.length) return { id, jobs: [], skipped, serverSweep: false };
+  const name = String(req.param.path[req.param.path.length - 1]);
+  const tag = { id, param: req.param.label, path: req.param.path };
+  try {
+    const job = await useJobs.getState().submit("sweep", req.spec, { method: req.method, label: `sweep ${name}: ${ok.length} values`, sweep: { ...tag, values: ok } });
+    return { id, jobs: [job], skipped, serverSweep: true };
+  } catch (e) {
+    // servers without sweep jobs reject the kind (422 naming `kind`, or NotImplemented); anything else is real
+    const old = e instanceof ApiError && (e.status === 404 || e.status === 405 || (e.status === 422 && /(^|\W)kind(\W|$)|NotImplemented/i.test(`${e.error} ${e.message}`)));
+    if (!old) throw e;
+  }
+  const jobs: JobRecord[] = [];
+  for (const v of ok) jobs.push(await useJobs.getState().submit("solve", withValue(req.spec, req.param.path, v), { method: req.method, label: `${name} = ${v}`, sweep: { ...tag, value: v } }));
+  return { id, jobs, skipped, serverSweep: false };
 }

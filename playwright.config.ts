@@ -9,7 +9,8 @@ const PORT = 5174;
 export default defineConfig({
   testDir: "e2e",
   timeout: 60_000,
-  expect: { timeout: 15_000 },
+  // the first Plotly chart of a run loads a 4.8 MB chunk through the dev server: allow a cold start
+  expect: { timeout: 30_000 },
   fullyParallel: false,
   reporter: [["list"]],
   use: {

@@ -2,6 +2,7 @@
 // (peak, its position, value at x, …) and plots it against the swept parameter, beside the overlaid curves.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isSweep } from "../api/types";
 import { curvesOf, METRICS, reduce, type Curve, type Metric } from "../lib/curves";
 import { exportFile } from "../lib/files";
 import { useConnection } from "../state/connection";
@@ -27,8 +28,8 @@ export function SweepSetup(props: { disabled: boolean }) {
   const run = async () => {
     if (!p) return;
     try {
-      const { jobs } = await runSweep({ spec, param: p, values, method: conn.method });
-      toast(`Submitted a sweep of ${p.label}: ${jobs.length} solves`);
+      const { jobs, serverSweep } = await runSweep({ spec, param: p, values, method: conn.method });
+      if (jobs.length) toast(serverSweep ? `Submitted a sweep of ${p.label} as one job (${values.length} values)` : `Submitted a sweep of ${p.label}: ${jobs.length} solves`);
       useUi.getState().setCenterTab("sweep");
     } catch (e) {
       toast((e as Error).message, "error");
@@ -95,7 +96,7 @@ export function SweepView() {
   const sweeps = useMemo(() => {
     const m = new Map<string, JobRecord[]>();
     for (const j of jobs) if (j.sweep) m.set(j.sweep.id, [...(m.get(j.sweep.id) ?? []), j]);
-    return [...m.entries()].map(([id, js]) => ({ id, param: js[0].sweep!.param, jobs: [...js].sort((a, b) => a.sweep!.value - b.sweep!.value) }));
+    return [...m.entries()].map(([id, js]) => ({ id, param: js[0].sweep!.param, jobs: [...js].sort((a, b) => (a.sweep!.value ?? 0) - (b.sweep!.value ?? 0)) }));
   }, [jobs]);
   const [sel, setSel] = useState<string | null>(null);
   const sw = sweeps.find((s) => s.id === sel) ?? sweeps[0];
@@ -108,7 +109,18 @@ export function SweepView() {
       live = false;
     };
   }, [doneKeys.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
-  const runs = (sw?.jobs ?? []).map((j) => ({ job: j, value: j.sweep!.value, curves: results.has(j.key) ? curvesOf(results.get(j.key)) : ([] as Curve[]) }));
+  // one job per value, or one server sweep job whose result holds every value's result
+  const runs = (sw?.jobs ?? []).flatMap((j) => {
+    if (j.operation !== "sweep") return [{ key: j.key, value: j.sweep!.value ?? NaN, status: j.status as string, error: j.error?.message ?? "", curves: results.has(j.key) ? curvesOf(results.get(j.key)) : ([] as Curve[]) }];
+    const res = results.get(j.key);
+    const values = isSweep(res) ? res.values : (j.sweep!.values ?? []);
+    return values.map((v, i) => {
+      const r = isSweep(res) ? res.results[i] : null;
+      const err = isSweep(res) ? res.errors[String(i)] : undefined;
+      return { key: `${j.key}#${i}`, value: v, status: err ? "failed" : r ? "succeeded" : (j.status as string), error: err ? `${err.error}: ${err.message}` : (j.error?.message ?? ""), curves: r ? curvesOf(r) : ([] as Curve[]) };
+    });
+  });
+  const serverSweep = !!sw?.jobs.some((j) => j.operation === "sweep");
   const withCurves = runs.filter((r) => r.curves.length);
   const quantities = withCurves[0]?.curves ?? [];
   const [qSel, setQ] = useState<string | null>(null);
@@ -132,19 +144,19 @@ export function SweepView() {
   });
   const mlabel = METRICS.find((m) => m.id === metric)!.label + (metric === "at_x" ? ` ${at}` : "");
   const csv = () => void exportFile([["value", `${q?.id} ${metric}`].join(","), ...pts.map((p) => `${p.value},${p.y}`)].join("\n") + "\n", "sweep.csv", "text/csv");
-  const failed = runs.filter((r) => r.job.status === "failed");
+  const failed = runs.filter((r) => r.status === "failed");
   return (
     <div className="results-main padded" data-testid="sweep-view">
       <div className="row wrap">
         <h4 className="grow">
-          Sweep of <code>{sw.param}</code> · {withCurves.length}/{runs.length} done
+          Sweep of <code>{sw.param}</code> · {withCurves.length}/{runs.length} done{serverSweep ? " · one server job" : ""}
           {failed.length ? <span className="warn-text"> · {failed.length} failed</span> : null}
         </h4>
         {sweeps.length > 1 && (
           <select value={sw.id} onChange={(e) => setSel(e.target.value)}>
             {sweeps.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.param} ({s.jobs.length})
+                {s.param} ({s.jobs.reduce((n, j) => n + (j.sweep?.values?.length ?? 1), 0)})
               </option>
             ))}
           </select>
@@ -200,9 +212,9 @@ export function SweepView() {
         </thead>
         <tbody>
           {runs.map((r) => (
-            <tr key={r.job.key}>
+            <tr key={r.key}>
               <td>{r.value}</td>
-              <td title={r.job.error?.message ?? ""}>{r.job.status}</td>
+              <td title={r.error}>{r.status}</td>
               <td>{Number.isFinite(pts.find((p) => p.value === r.value)?.y ?? NaN) ? Number(pts.find((p) => p.value === r.value)!.y.toPrecision(5)) : "—"}</td>
             </tr>
           ))}

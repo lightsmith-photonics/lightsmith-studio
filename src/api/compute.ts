@@ -4,8 +4,10 @@
 
 import doctorJson from "../generated/doctor.json";
 import schemaJson from "../generated/schema.json";
-import { clone, isObject, type Json, type JsonObject, type JSONSchema } from "../schema/schema";
+import { clone, isObject, SchemaDoc, type Json, type JsonObject, type JSONSchema } from "../schema/schema";
+import { validateProblem } from "../schema/validate";
 import { fdtdSnapshotResult, layoutSnapshot } from "./mock/snapshots";
+import { withValue } from "../lib/specPath";
 import { CANNED_WARNING, estimateMock, MOCK_BACKENDS, problemKind, resolveBackend, SNAPSHOT_WARNING, solveMock, supportsAll } from "./mock/solver";
 import {
   ApiError,
@@ -32,7 +34,7 @@ export interface ComputeClient {
   supports(spec: Json, backends: BackendInfo[]): Promise<SupportInfo[]>;
   /**
    * What the backend `method` will discretise for this spec (grid, mesh, dipoles, harmonics, cells…), before any
-   * solve. Proposed endpoint `POST /v1/layout`; throws ApiError with status 404 where the server lacks it.
+   * solve: `POST /v1/discretization` (lightsmith.discretization); throws ApiError with status 404 where the server lacks it.
    */
   layout(spec: Json, method?: string): Promise<SolverLayout>;
   submit(req: JobRequest): Promise<JobState>;
@@ -138,7 +140,7 @@ export class HttpComputeClient implements ComputeClient {
     return this.req<Estimate>("POST", "/v1/estimate", { simulation: spec, method, device });
   }
   layout(spec: Json, method = "auto") {
-    return this.req<SolverLayout>("POST", "/v1/layout", { simulation: spec, method });
+    return this.req<SolverLayout>("POST", "/v1/discretization", { simulation: spec, method });
   }
 
   private noSupportsEndpoint = false;
@@ -189,6 +191,7 @@ export class HttpComputeClient implements ComputeClient {
       reference: r.reference ?? null,
       device: r.device ?? "auto",
       label: r.label ?? null,
+      ...(r.operation === "sweep" ? { sweep: r.sweep } : {}),
     };
     return normalizeJob(await this.req<RawJob>("POST", "/v1/jobs", body));
   }
@@ -368,6 +371,15 @@ export class MockComputeClient implements ComputeClient {
 
   async submit(request: JobRequest): Promise<JobState> {
     await this.delay();
+    if (request.operation === "sweep") {
+      // as the compute server: every swept problem is checked before the job is queued
+      if (!request.sweep?.values.length) throw new ApiError("ValidationError", "sweep jobs need `sweep`: {path, values}", 422);
+      const doc = new SchemaDoc((this.opts.schema ?? schemaJson) as JSONSchema);
+      for (const v of request.sweep.values) {
+        const issues = validateProblem(doc, withValue(asSpec(request.spec), request.sweep.path, v));
+        if (issues.length) throw new ApiError("ValidationError", `sweep value ${v}: ${issues[0].path.join(".")} ${issues[0].message}`, 422);
+      }
+    }
     const id = `mock-${Date.now().toString(36)}-${(++this.seq).toString(36)}`;
     const job: MockJob = { id, status: "queued", progress: 0, operation: request.operation, created_at: new Date().toISOString(), request, listeners: new Set() };
     this.jobs.set(id, job);
@@ -397,6 +409,7 @@ export class MockComputeClient implements ComputeClient {
       let result: JobState["result"];
       let snap: Awaited<ReturnType<typeof fdtdSnapshotResult>> = null;
       if (r.operation === "estimate") result = estimateMock(spec, r.method ?? "auto", r.device ?? "auto");
+      else if (r.operation === "sweep") result = (await this.sweep(spec, r)) as unknown as JobState["result"];
       else if (r.operation === "solve" && resolveBackend(spec, r.method ?? "auto").method === "fdtd" && (snap = await fdtdSnapshotResult(spec))) {
         const res = clone(snap.result as unknown as Json) as unknown as ScatteringResult;
         result = { ...res, provenance: { ...res.provenance, mock: true, snapshot: snap.id }, warnings: [SNAPSHOT_WARNING, ...(res.warnings ?? [])] };
@@ -411,6 +424,24 @@ export class MockComputeClient implements ComputeClient {
       Object.assign(job, { status: "failed", error: err, finished_at: new Date().toISOString() });
       this.emit(job, { type: "error", status: "failed", error: err });
     }
+  }
+
+  /** As the compute server's sweep jobs: one solve per value, in order; a failed value is recorded. */
+  private async sweep(spec: JsonObject, r: JobRequest) {
+    if (!r.sweep) throw new Error("sweep jobs need `sweep`: {path, values}");
+    const { path, values } = r.sweep;
+    const results: unknown[] = [];
+    const errors: Record<string, { error: string; message: string }> = {};
+    for (const [i, v] of values.entries()) {
+      const s = withValue(spec, path, v);
+      try {
+        results.push(problemKind(s) !== "scattering" ? await cannedResult(s, { ...r, operation: "solve" }) : solveMock(s, r.method ?? "auto", r.device ?? "auto"));
+      } catch (e) {
+        results.push(null);
+        errors[String(i)] = { error: "ValueError", message: (e as Error).message };
+      }
+    }
+    return { kind: "sweep", path, values, method: r.method ?? "auto", results, errors };
   }
 
   private snapshot(j: MockJob): JobState {

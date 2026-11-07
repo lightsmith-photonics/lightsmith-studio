@@ -1226,7 +1226,7 @@
       }
      ],
      "default": null,
-     "description": "CPML thickness in cells. Default: 10, or 16 with a substrate (steep waves in the substrate need the thicker layer).",
+     "description": "CPML thickness in cells. Default: 10, 16 with a substrate (steep waves in the substrate need the thicker layer), 12 for devices.",
      "title": "Pml Cells"
     },
     "pml_kappa": {
@@ -1388,7 +1388,7 @@
     },
     "grid": {
      "default": "uniform",
-     "description": "Scattering: 'auto' grades the grid (non-uniform per axis): the base spacing from the host medium and cells_per_wavelength, refined inside each particle's bounding box (plus a margin) to the spacing its material and size need (cells_per_wavelength in the particle, cells_per_radius), with a bounded growth ratio (grading_ratio) in between. Far fewer cells for small, high-index or metal particles.",
+     "description": "Scattering and devices: 'auto' grades the grid (non-uniform per axis): the base spacing from the host medium and cells_per_wavelength, refined inside each particle's bounding box (plus a margin) to the spacing its material and size need (cells_per_wavelength in the particle, cells_per_radius), with a bounded growth ratio (grading_ratio) in between. Far fewer cells for small, high-index or metal particles.",
      "enum": [
       "uniform",
       "auto"
@@ -1397,7 +1397,7 @@
      "type": "string"
     },
     "mesh_override": {
-     "description": "Scattering: refinement boxes (as Lumerical's mesh override regions); the grid takes each box's spacing inside it and grades to the base spacing (spacing_nm, or the automatic spacing) around it. Combine with grid='auto' or use alone.",
+     "description": "Scattering and devices: refinement boxes (mesh override regions); the grid takes each box's spacing inside it and grades to the base spacing (spacing_nm, or the automatic spacing) around it. Combine with grid='auto' or use alone.",
      "items": {
       "$ref": "#/$defs/MeshOverride"
      },

@@ -34,6 +34,10 @@ const CASES: { kind: string; start?: string; backend: string; text: RegExp; plot
   { kind: "mode", backend: "lightsmith-fde", text: /boundary/, plot: "preview-plot", shot: "preview-fde" },
   { kind: "periodic", backend: "lightsmith-rcwa", text: /harmonics/, plot: "preview-plot", shot: "preview-rcwa" },
   { kind: "layer_stack", backend: "lightsmith-tmm", text: /nothing to discretise/ },
+  { kind: "layer_stack", backend: "lightsmith-fdtd", text: /CPML cells \(z\)/, plot: "preview-plot", shot: "preview-fdtd-cell" },
+  { kind: "periodic", backend: "lightsmith-fdtd", text: /cell size/, plot: "preview-plot" },
+  { kind: "scattering", start: "sphere", backend: "miepython", text: /miepython's wiscombe_terms/, plot: "preview-plot" },
+  { kind: "scattering", start: "sphere", backend: "lightsmith-quasistatic", text: /nothing to discretise/ },
   { kind: "bands", backend: "lightsmith-pwe", text: /k-points/, plot: "preview-plot", shot: "preview-pwe" },
   { kind: "device", backend: "lightsmith-eme", text: /modes per cell/, plot: "preview-cells-plot", shot: "preview-eme" },
   { kind: "device", backend: "lightsmith-bpm", text: /step/, plot: "preview-cells-plot" },
@@ -130,8 +134,12 @@ test("sweep: a solver option (options.<method>.<field>) is created in the swept 
   await page.getByTestId("sweep-num").fill("3");
   await page.getByTestId("sweep-run").click();
   await expect(page.getByTestId("sweep-view")).toContainText("3/3 done", { timeout: 30_000 });
-  const swept = await page.evaluate(() => (JSON.parse(localStorage.getItem("studio:jobs") ?? "[]") as any[]).filter((j) => j.sweep).map((j) => j.spec.options?.dda?.dipoles_per_diameter));
-  expect(swept.sort()).toEqual([16, 20, 24]);
+  // one sweep job (the mock, like the compute server, runs sweep jobs) carrying the path and values
+  const jobs = await page.evaluate(() => (JSON.parse(localStorage.getItem("studio:jobs") ?? "[]") as any[]).filter((j) => j.sweep));
+  expect(jobs).toHaveLength(1);
+  expect(jobs[0].operation).toBe("sweep");
+  expect(jobs[0].sweep).toMatchObject({ path: ["options", "dda", "dipoles_per_diameter"], values: [16, 20, 24] });
+  await expect(page.getByTestId("sweep-table").locator("tbody tr")).toHaveCount(3);
 });
 
 test("device editor: solver chips and 2D polarization for FDTD", async ({ page }) => {

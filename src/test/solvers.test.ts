@@ -6,11 +6,13 @@ import backendsJson from "../generated/backends.json";
 import layoutsJson from "../generated/layouts.json";
 import { MockComputeClient } from "../api/compute";
 import { canonical } from "../api/mock/snapshots";
-import type { BackendInfo, SolverLayout } from "../api/types";
+import { ApiError, isSweep, type BackendInfo, type SolverLayout, type SweepResult } from "../api/types";
 import { curvesOf, difference, interpolate, reduce, type Curve } from "../lib/curves";
 import type { JsonObject } from "../schema/schema";
 import { KIND_TEMPLATES } from "../state/kinds";
-import { linspace, sweepParams, withValue } from "../state/sweep";
+import { linspace, runSweep, sweepParams, withValue } from "../state/sweep";
+import { useConnection } from "../state/connection";
+import { DEFAULT_SPEC } from "../state/templates";
 
 const fixtures = import.meta.glob("../generated/fixtures/*.json", { eager: true, import: "default" }) as Record<string, { spec: JsonObject; result: JsonObject | null }>;
 const LAYOUTS = layoutsJson as unknown as { spec: JsonObject; layouts: Record<string, SolverLayout> }[];
@@ -122,5 +124,55 @@ describe("sweeps", () => {
     expect((withValue(spec, ["particles", 0, "shape", "radius_nm"], 30).particles as JsonObject[])[0]).toMatchObject({ shape: { radius_nm: 30 } });
     expect(linspace(16, 24, 3, true)).toEqual([16, 20, 24]);
     expect(linspace(1, 2, 3)).toEqual([1, 1.5, 2]);
+  });
+});
+
+describe("sweeps through the server", () => {
+  it("the default scene has every scattering backend's layout, miepython's own rule included", () => {
+    const ls = forSpec(DEFAULT_SPEC);
+    expect(Object.keys(ls)).toEqual(expect.arrayContaining(["lightsmith-mie", "miepython", "lightsmith-quasistatic", "lightsmith-dda", "lightsmith-bem", "treams", "lightsmith-fdtd"]));
+    expect(ls.miepython.summary.rule).toBe("miepython's wiscombe_terms");
+    expect(ls["lightsmith-quasistatic"].layout_kind).toBe("none");
+    expect(forSpec(KIND_TEMPLATES.layer_stack)["lightsmith-fdtd"].layout_kind).toBe("unit_cell");
+  });
+
+  it("the mock runs sweep jobs as the compute server does: one result per value", async () => {
+    const mock = new MockComputeClient({ latencyMs: 0, stepMs: 0 });
+    const path = ["particles", 0, "shape", "radius_nm"];
+    await expect(mock.submit({ operation: "sweep", spec: DEFAULT_SPEC, method: "lightsmith-mie", sweep: { path, values: [20, -1] } })).rejects.toThrow(/sweep value -1/);
+    const job = await mock.submit({ operation: "sweep", spec: DEFAULT_SPEC, method: "lightsmith-mie", sweep: { path, values: [20, 40] } });
+    const res = await new Promise<JsonObject>((resolve) => mock.subscribe(job.id, (e) => e.type === "result" && resolve(e.result as JsonObject)));
+    expect(isSweep(res)).toBe(true);
+    const r = res as unknown as SweepResult;
+    expect(r.values).toEqual([20, 40]);
+    expect(r.errors).toEqual({});
+    const peak = (i: number) => Math.max(...(r.results[i] as { c_ext_nm2: number[] }).c_ext_nm2);
+    expect(peak(1)).toBeGreaterThan(peak(0));
+  });
+
+  it("falls back to one solve job per value on servers without sweep jobs", async () => {
+    const submitted: string[] = [];
+    const fake = {
+      kind: "http" as const,
+      baseUrl: "http://old.example",
+      async submit(r: { operation: string }) {
+        if (r.operation === "sweep") throw new ApiError("ValidationError", "kind: Input should be 'solve', 'compare', 'estimate' or 'optimize'", 422);
+        submitted.push(r.operation);
+        return { id: `j${submitted.length}`, status: "queued" as const };
+      },
+      subscribe: () => () => {},
+    };
+    const prev = useConnection.getState().client;
+    useConnection.setState({ client: fake as never });
+    try {
+      const param = sweepParams(DEFAULT_SPEC, BACKENDS, "mie").find((p) => p.label === "particles.0.shape.radius_nm")!;
+      const out = await runSweep({ spec: DEFAULT_SPEC, param, values: [30, 40, -5], method: "mie" });
+      expect(out.serverSweep).toBe(false);
+      expect(out.skipped).toEqual([-5]); // the schema rejects a negative radius before anything is sent
+      expect(submitted).toEqual(["solve", "solve"]);
+      expect(out.jobs.map((j) => j.sweep?.value)).toEqual([30, 40]);
+    } finally {
+      useConnection.setState({ client: prev });
+    }
   });
 });

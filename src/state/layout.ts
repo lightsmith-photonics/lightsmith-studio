@@ -1,7 +1,7 @@
-// What a backend will discretise for the current spec, as the library plans it (scripts/solver_layout.py is the
-// reference): grids, meshes, dipole lattices, harmonics, cells, plane waves. Studio never computes these itself.
+// What a backend will discretise for the current spec, as the library plans it (lightsmith.discretization):
+// grids, meshes, dipole lattices, harmonics, cells, plane waves. Studio never computes these itself.
 // In order, it asks:
-//   1. the compute server, `POST /v1/layout` (proposed; API_ASSUMPTIONS.md);
+//   1. the compute server, `POST /v1/discretization` (API_ASSUMPTIONS.md, "Solver layouts");
 //   2. in development, the library bridge of the Vite dev server (`POST /__library/v1/layout`, which runs
 //      scripts/solver_layout.py against ../lightsmith);
 //   3. the server's `POST /v1/estimate` for the same backend: its figures, and for FDTD the mirror planes.
@@ -105,7 +105,7 @@ function createLayoutStore(defaultMethod: string): UseBoundStore<StoreApi<Layout
           return ok(await client.layout(spec, method), client.kind === "mock" ? "snapshot" : "server");
         } catch (e) {
           if (!(e instanceof ApiError) || (e.status !== 404 && e.status !== 405)) return keep((e as Error).message);
-          missing = client.kind === "mock" ? (e as Error).message : "this compute server has no POST /v1/layout (proposed)";
+          missing = client.kind === "mock" ? (e as Error).message : "this compute server has no POST /v1/discretization";
         }
         try {
           const l = await fromBridge(spec, method);

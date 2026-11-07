@@ -371,8 +371,49 @@ function YeeGrid({ p }: { p: P }) {
   );
 }
 
+/** FDTD unit cell (periodic structures, layer stacks): x–depth section with the layers, z planes and CPML. */
+function UnitCell({ p }: { p: P }) {
+  const xs = decimate(arr(p.x_nm));
+  const zs = decimate(arr(p.z_nm));
+  const Z = arr(p.z_nm);
+  const X = arr(p.x_nm);
+  const [x0, x1] = [X[0], X[X.length - 1]];
+  const pml = (p.pml_inner_z_nm as number[]) ?? [Z[0], Z[Z.length - 1]];
+  const planes = (p.planes_nm as Record<string, number>) ?? {};
+  const tops = arr(p.layer_tops_nm);
+  const th = arr(p.layer_thicknesses_nm);
+  const data: unknown[] = [
+    rect(x0, x1, Z[0], pml[0], PML, "CPML"),
+    rect(x0, x1, pml[1], Z[Z.length - 1], PML),
+    ...tops.map((t, i) => rect(x0, x1, t, t + th[i], `rgba(${i % 2 ? "79,157,255" : "56,211,159"},0.18)`, `layer ${i + 1} (${th[i]} nm)`)),
+    gridLines(xs.nodes, zs.nodes),
+    ...Object.entries(planes).map(([name, z], i) => ({
+      x: [x0, x1],
+      y: [z, z],
+      mode: "lines+text",
+      text: i % 2 ? ["", name] : [name, ""],
+      textposition: i % 2 ? "bottom left" : "top right",
+      line: { color: ["#f2c94c", "#ff8a4c", "#dfe3ea", "#dfe3ea", "#f2c94c"][i % 5], width: name.startsWith("stack") ? 1 : 2.5, dash: name.startsWith("stack") ? "dot" : "solid" },
+      name,
+      showlegend: false,
+    })),
+  ];
+  const inv = (p.invariant as boolean[]) ?? [false, false];
+  return (
+    <>
+      <Plot data={data} layout={{ xaxis: { title: { text: "x (nm)" } }, yaxis: { title: { text: "depth below the top of the stack (nm)" }, autorange: "reversed" }, hovermode: "closest" }} height={460} testId="preview-plot" />
+      <p className="muted small">
+        One period ({(p.n_cells as number[]).join(" × ")} cells{inv[0] || inv[1] ? `; invariant along ${inv[0] ? "x" : ""}${inv[1] ? "y" : ""}: one cell` : ""}), periodic in x and y, CPML along z. Grid lines{" "}
+        {Math.max(xs.step, zs.step) > 1 ? `every ${Math.max(xs.step, zs.step)} cells` : "at every node"}.
+      </p>
+    </>
+  );
+}
+
 function Visual({ kind, p, spec }: { kind: string; p: P; spec: JsonObject }) {
   switch (kind) {
+    case "unit_cell":
+      return <UnitCell p={p} />;
     case "device_grid":
       return <DeviceGrid p={p} spec={spec} />;
     case "cross_section_grid":

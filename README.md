@@ -66,11 +66,11 @@ library's verdict, and the scene editors of the 2D kinds have chips to pick one.
 
 | Backend | Preview |
 |---|---|
-| Mie (`lightsmith-mie`) | multipole order n_max per wavelength, with the size parameter |
+| Mie (`lightsmith-mie`, `miepython`) | multipole order n_max per wavelength, with the size parameter and the rule each uses |
 | T-matrix (`treams`) | lmax per particle (more for close neighbours), modes |
 | DDA | the occupied dipole lattice in 3D, coloured by material; spacing, dipoles per diameter |
 | BEM | the surface mesh in 3D; triangles, edges, unknowns |
-| FDTD | scattering and emission: cell widths per axis (the Scene tab draws the boxes, CPML, mirror planes and mesh slice); devices: the grid with PML, port source and monitor planes, te/tm |
+| FDTD | scattering and emission: cell widths per axis (the Scene tab draws the boxes, CPML, mirror planes and mesh slice); periodic structures and layer stacks: the unit cell, its layers, source and monitor planes and CPML; devices: the grid (uniform or graded) with PML, port source and monitor planes, te/tm |
 | RCWA | the Fourier orders (m, n) and the layers, each uniform in z |
 | FDE | the cross-section grid, PML, boundary, structure outlines |
 | FDFD | the device grid, PML and ports |
@@ -86,9 +86,10 @@ library's verdict, and the scene editors of the 2D kinds have chips to pick one.
 | ![RCWA harmonics](docs/screenshots/preview-rcwa.png) | ![PWE k-path and plane waves](docs/screenshots/preview-pwe.png) |
 | ![FDTD device grid and ports](docs/screenshots/preview-fdtd-device.png) | ![Inverse design grid](docs/screenshots/preview-inverse.png) |
 
-The layout comes from the server's proposed `POST /v1/layout`, else (development) the dev server's library
-bridge running `scripts/solver_layout.py`, else the estimate's figures; the mock serves the library's layouts
-of the shipped examples. See API_ASSUMPTIONS.md, "Proposed: solver layouts".
+The layout is the library's `lightsmith.discretization()`: from the server's `POST /v1/discretization`, else
+(development) the dev server's library bridge running `scripts/solver_layout.py`, else the estimate's figures;
+the mock serves the library's layouts of the shipped examples. `discretization()` and `/v1/discretization` are on
+the `layout-api` branches of the library and the compute server, awaiting merge. See API_ASSUMPTIONS.md, "Solver layouts".
 
 **Compare** works for every problem kind. Tick backends under *Compare* in the Run panel (or tick finished runs
 in Results) and the Compare tab overlays one quantity across them (cross sections, R/T/A per polarisation and
@@ -100,7 +101,8 @@ worst quantity per run. Runs on different wavelength grids are interpolated onto
 
 **Sweep** runs one solve per value of one number: any number in the spec (a radius, a position, the medium
 index, a layer thickness…) or a numeric option of the chosen method (`options.dda.dipoles_per_diameter`,
-`options.fdtd.spacing_nm`…). The Sweep tab reduces each run's curve to a number (peak, its position, minimum,
+`options.fdtd.spacing_nm`…). On a compute server with sweep jobs it is one job (`kind: "sweep"`); on older
+servers, one solve job per value. The Sweep tab reduces each run's curve to a number (peak, its position, minimum,
 mean, value at x) and plots it against the parameter, beside the overlaid curves.
 
 ![Sweep of a sphere radius](docs/screenshots/sweep.png)
@@ -135,8 +137,8 @@ CAD tool does, but without computing any of them itself.
 ![Mesh slice through the dimer gap](docs/screenshots/fdtd-mesh.png)
 
 Where the layout comes from (`src/state/layout.ts`):
-1. the compute server's `POST /v1/layout`, which Studio proposes to the library (see API_ASSUMPTIONS.md,
-   "Proposed: FDTD layout");
+1. the compute server's `POST /v1/discretization` (the library's `discretization()`; see API_ASSUMPTIONS.md,
+   "Solver layouts");
 2. in development, the Vite dev server's **library bridge**: it runs `scripts/solver_layout.py` against
    `../lightsmith` (needs `uv`; off with `STUDIO_LIBRARY_BRIDGE=0`). That script is the reference
    implementation of the proposal, built on the library's own planning code;
@@ -298,7 +300,8 @@ Embedding pages can `postMessage({studio: "getSpec"|"setSpec"|"apply"|"validate"
   ```
 - **Templates.** `src/test/kinds.test.ts` checks that every kind's template validates against the
   schema, and that every solved example's result kind has a viewer.
-- **Snapshot.** `npm run sync:library` refreshes the library snapshot: schema, backends with options
+- **Snapshot.** The current snapshot comes from the library's `layout-api` branch (main ecfb638 plus
+  `discretization()`). `npm run sync:library` refreshes the library snapshot: schema, backends with options
   schemas, and bundled n/k data. `uv run --project ../lightsmith python scripts/make_fixtures.py`
   re-solves the per-kind examples, and lays out and solves the FDTD templates
   (`src/generated/fdtd_templates.json`, `fixtures/fdtd/`; on the GPU when there is one). It is slow: RCWA

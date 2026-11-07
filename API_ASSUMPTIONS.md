@@ -37,9 +37,9 @@ or runtime `config.js` (Docker `STUDIO_*`).
 | `GET /v1/backends` | — | `name`, `method`, `problem_kinds`, `gpu`, `available`, `unavailable_reason`, `license` and `citation` feed the method list and the support table. `options_schema` generates the per-method options forms. While the server sends `null`, Studio uses the bundled snapshot's schema for the same backend name. | verified |
 | `POST /v1/supports` | `{simulation}` | `[{name, method, available, unavailable_reason, supported, reason}]`. On 404 or 405 (older servers) Studio falls back to one `/v1/estimate` per backend, cached per spec. | contract (fallback verified) |
 | `GET /v1/doctor` | — | Device menu and settings. | verified |
-| `POST /v1/estimate` | `{simulation, method, device}` | The whole dict, with labels for known keys. Runtime comes from `estimated_runtime_s`, else `seconds_estimate`, else a labelled heuristic. When the server has no `/v1/layout`, the estimate's figures fill the Preview tab, and for FDTD scattering its `symmetry` (`mirrors`, `planes_nm`, `reduction`, `skipped`) gives the 3D mirror planes. | verified |
-| `POST /v1/layout` | `{simulation, method}` | What the backend will discretise (any backend), for the Preview tab, the FDTD objects in the 3D view and the mesh slice; see "Proposed: solver layouts" below. On 404 or 405 Studio falls back to the dev server's library bridge (development only), then to `/v1/estimate`. | **proposed** |
-| `POST /v1/jobs` → 202 | `{simulation, kind: "solve"\|"compare", method, methods, reference, device, label}` | `job_id` (or `id`) and `status`. A 422 at submit is shown as a toast. Optimization problems are submitted as `solve`, which the API treats like `optimize`. | verified (scattering) |
+| `POST /v1/estimate` | `{simulation, method, device}` | The whole dict, with labels for known keys. Runtime comes from `estimated_runtime_s`, else `seconds_estimate`, else a labelled heuristic. When the server has no `/v1/discretization`, the estimate's figures fill the Preview tab, and for FDTD scattering its `symmetry` (`mirrors`, `planes_nm`, `reduction`, `skipped`) gives the 3D mirror planes. | verified |
+| `POST /v1/discretization` | `{simulation, method}` | What the backend will discretise (any backend), for the Preview tab, the FDTD objects in the 3D view and the mesh slice; see "Solver layouts" below. On 404 or 405 (servers before it) Studio falls back to the dev server's library bridge (development only), then to `/v1/estimate`. | verified (cloud branch `layout-api`) |
+| `POST /v1/jobs` → 202 | `{simulation, kind: "solve"\|"compare"\|"sweep", method, methods, reference, device, label, sweep}` | `job_id` (or `id`) and `status`. A 422 at submit is shown as a toast. Optimization problems are submitted as `solve`, which the API treats like `optimize`. `kind: "sweep"` with `sweep: {path, values}`: see "Comparisons and sweeps". | verified (scattering; sweeps on cloud branch `layout-api`) |
 | `GET /v1/jobs/{id}` | — | `status`, `progress`, `stage`, `message`, `error`, `result`. When `result` is null on success, Studio fetches `result_url`. | verified |
 | `DELETE /v1/jobs/{id}` | — | Cancel. Falls back to `POST …/cancel`. | contract |
 | `WS /v1/jobs/{id}/events` | — | `status`, `progress` and `log` events. `end`, or a terminal status, triggers a final GET. Studio polls if the socket fails. | verified |
@@ -61,35 +61,42 @@ servers:
 time-domain solvers when `outputs.resonances` is set; Studio shows them as a Q table.
 
 `compare` returns `{reference, results: {name: <any kind>}, relative_difference}`. Studio overlays the
-per-method results in the kind's viewer and differences them in the Compare tab (see "Studio-side: comparisons
+per-method results in the kind's viewer and differences them in the Compare tab (see "Comparisons
 and sweeps").
 
-## Proposed: solver layouts (library and compute API)
+## Solver layouts (library and compute API)
 
-**The gap.** For every backend, Studio shows what the solver will discretise before the run: the FDTD Yee grid,
-boxes and CPML; the DDA dipole lattice; the BEM surface mesh; the Mie and T-matrix multipole orders; the RCWA
-harmonics and layers; the FDE and FDFD grids; the EME and BPM cells; the PWE k-path and plane waves; the inverse
-design grid and design regions. It must not compute any of these itself: they depend on each backend's sizing
-rules, and a TypeScript copy would drift from the solvers. Today the library exposes only part of this:
+For every backend, Studio shows what the solver will discretise before the run: the FDTD Yee grid, boxes and
+CPML (and unit cells, and device grids with ports); the DDA dipole lattice; the BEM surface mesh; the Mie and
+T-matrix multipole orders; the RCWA harmonics and layers; the FDE and FDFD grids; the EME and BPM cells; the PWE
+k-path and plane waves; the inverse-design grid and design regions. Studio never computes any of these: they
+depend on each backend's sizing rules, and a TypeScript copy would drift from the solvers.
 
-- `lightsmith estimate` / `POST /v1/estimate` returns per-backend counts (dipoles, unknowns, `grid` shapes,
-  `n_max`, `harmonics`, `num_plane_waves`, FDTD `symmetry.planes_nm` and `graded_grid`…). These are figures
-  only: no positions, nodes, meshes, cells or port planes.
-- The geometry exists only inside each backend's private planning code (listed below), which `estimate` and
-  `solve` already call.
+**Status.** Implemented, awaiting review and merge, on two branches named `layout-api`:
 
-**Proposal.** One optional, read-only `layout()` per backend, next to `estimate`, which never solves:
+- library (`../lightsmith`, worktree `../worktrees/layout-api`, from main ecfb638): `lightsmith/discretize.py`,
+  `Backend.discretization()`, `ls.discretization`, `lightsmith discretization`, the MCP tool `get_discretization`,
+  `tests/test_discretization.py`, `docs/discretization.md` (named so because `lightsmith.layout` is the GDS
+  module);
+- compute server (`../lightsmith-cloud`, worktree `../worktrees/cloud-layout-api`): `POST /v1/discretization`,
+  run in the sandboxed estimate worker.
+
+Before these merge, `lightsmith estimate` / `POST /v1/estimate` gives only figures (dipoles, unknowns, `grid`
+shapes, `n_max`, `harmonics`, `num_plane_waves`, FDTD `symmetry.planes_nm`), no positions, nodes, meshes, cells or
+port planes.
+
+**The API.** One optional, read-only `discretization()` per backend, next to `estimate`, which never solves:
 
 ```python
-ls.layout(problem, method="auto") -> dict          # Backend.layout(problem, device) -> dict, optional
+ls.discretization(problem, method="auto") -> dict  # Backend.discretization(problem, device), optional
 ```
 ```bash
-lightsmith layout spec.json [--method dda]         # JSON on stdout, errors as for estimate
+lightsmith discretization spec.json [--method dda] # JSON on stdout, errors as for estimate
 ```
 ```http
-POST /v1/layout  {"simulation": {...}, "method": "auto"}   ->  200 <the envelope>   (lightsmith-cloud)
+POST /v1/discretization  {"simulation": {...}, "method": "auto"}   ->  200 <the envelope>   (lightsmith-cloud)
 ```
-and an MCP tool `get_layout` with the same arguments. `method` resolves as for `solve`.
+and an MCP tool `get_discretization` with the same arguments. `method` resolves as for `solve`.
 
 **Common envelope** (every backend):
 
@@ -126,34 +133,39 @@ and an MCP tool `get_layout` with the same arguments. `method` resolves as for `
 | `cross_section_grid` | FDE | `x_nm`, `y_nm`, `dx_nm`, `dy_nm`, `pml_cells`, `symmetry`, `boundary`, `num_modes` | `fde._grid` |
 | `cells` | EME, BPM | `axis`, `lo_nm`, `hi_nm`, `cells[]` (`start_nm`, `stop_nm`; BPM: `steps`, `dz_nm`), `cross_section`; EME: `modes_per_cell`; BPM: `step_nm` | `NativeEME._setup` / `NativeBPM._setup`, `_eme.slice_device` |
 | `plane_waves` | PWE | `k_reduced[]`, `k_distance[]`, `k_labels`, per polarisation `solver`, `num_plane_waves`, `matrix_size`, FFT `grid`, dense `g_indices[]` | `pwe._cell`, `pwe.k_path`, `_pwe.engine.make_plan` |
-| `none` | TMM, quasistatic, circuits, miepython (order internal), FDTD periodic and layer stacks (not yet) | `note` | — |
+| `unit_cell` | FDTD periodic, layer stacks | `x_nm`, `y_nm`, `z_nm` (depth below the top of the stack), `planes_nm` (reflection monitor, source, stack top and bottom, transmission monitor), `pml_cells`, `pml_inner_z_nm`, layer tops and thicknesses, `invariant` | `_fdtd.periodic.make_cell` |
+| `none` | TMM, quasistatic, circuits | `note`; the summary holds the estimate's figures | — |
 
-**Reference implementation.** `scripts/solver_layout.py` in this repository builds exactly this envelope from
-those private functions, so it reuses each solver's code path rather than copying it, and never solves. Studio
-uses it until the library ships `layout`:
+Mie's payload also names the order `rule`: Wiscombe's for `lightsmith-mie`, and `miepython`'s own
+`wiscombe_terms` for `miepython`.
 
-- the Vite dev server runs it for `POST /__library/v1/layout` (`vite.config.ts`, development only, needs `uv`
-  and `../lightsmith`; off with `STUDIO_LIBRARY_BRIDGE=0`);
-- `scripts/make_fixtures.py` snapshots the layouts of every example for every backend that runs it
-  (`src/generated/layouts.json`, and the FDTD templates in `fdtd_templates.json`), which the in-browser mock
-  serves for those exact specs, together with the estimate recorded alongside.
+**In Studio.**
 
-Moving it into the library is a matter of a `layout()` classmethod per backend beside `estimate` (the bodies
-are the script's per-solver functions), `ls.layout` in `api.py`, and the CLI, MCP and HTTP routes; the private
-imports in the script then go away. If a backend renames its planning functions first, the script breaks and
-the GUI falls back to the estimate figures.
+- `scripts/solver_layout.py` (the dev server's library bridge, and `make_fixtures.py`) calls
+  `lightsmith.discretization` when the installed library has it. For an older library it runs
+  `scripts/_layouts_fallback.py`, a verbatim copy of the library module with two shims; delete it once every
+  supported library has `discretization()`.
+- The Vite dev server runs it for `POST /__library/v1/layout` (`vite.config.ts`, development only, needs `uv` and
+  `../lightsmith`; off with `STUDIO_LIBRARY_BRIDGE=0`).
+- `scripts/make_fixtures.py` snapshots the layouts of every example (and the default sphere) for every backend
+  that runs it (`src/generated/layouts.json`, and the FDTD templates in `fdtd_templates.json`), which the
+  in-browser mock serves for those exact specs, together with the estimate recorded alongside.
 
-## Studio-side: comparisons and sweeps
+## Comparisons and sweeps
 
 - **Compare** uses `POST /v1/jobs` with `kind: "compare"` and `methods`, and also overlays any finished runs of
   the same problem kind. Differences are computed in Studio from the results' own arrays (curves per result
   kind: cross sections, R/T/A, n_eff, |S|², bands, decay rates, objective history), relative to a chosen
   reference with the library's floor (10⁻³ of the reference's largest value). Runs on different x grids are
   interpolated onto the reference's.
-- **Sweeps** have no library or server call: a sweep is N ordinary `solve` jobs, each a complete spec with one
-  number changed (a spec field, or `options[method][field]`, created if absent), validated against the schema
-  first. A server-side sweep job (one submission, shared set-up such as DDA interaction matrices or FDE
-  operators) would be cheaper; Studio would use it if offered, with the same per-value results.
+- **Sweeps** change one number (a spec field, or `options[method][field]`, created if absent) over a list of
+  values. Studio checks every swept spec against the schema first and skips the values it rejects, then submits
+  `POST /v1/jobs` with `kind: "sweep"` and `sweep: {path, values}`: one job, which the server runs value by value
+  in one worker. The result is `{kind: "sweep", path, values, method, results: [one result per value, or null],
+  errors: {index: {error, message}}}`; in hosted mode each value is priced and the job's credit estimate is
+  their sum. A server without sweep jobs rejects the kind (422 naming `kind`, or 404/405); Studio then submits
+  one `solve` job per value instead, with the same results in the Sweep tab. The in-browser mock runs sweep jobs
+  like the server. Solves stay independent either way: the swept field changes each solver's set-up.
 
 ## Materials (materials-db, `http://localhost:8100`)
 

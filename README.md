@@ -18,7 +18,9 @@ The product name, app name, deep-link scheme and the library's package/CLI names
 ## Problem kinds
 
 **New…** opens the project picker. The list of kinds comes from the live schema, so a kind added to
-the library appears automatically, with generated editors.
+the library appears automatically, with generated editors. Every kind has the same five center tabs:
+**Scene** (the editor below), **Preview** (what the chosen backend will discretise), **Results**, **Compare**
+(several backends or runs, with their differences) and **Sweep** (one parameter over a range).
 
 | Kind | Scene editor | Result viewer |
 |---|---|---|
@@ -26,7 +28,7 @@ the library appears automatically, with generated editors.
 | `layer_stack` | layer stack editor: add from presets, reorder, remove; superstrate and substrate; n at mid-band | R/T/A vs λ per angle and polarization, R/T/A vs angle map |
 | `periodic` | patterned-layer stack, plus a 2D unit-cell editor with neighbouring cells shown | R/T/A plus diffraction-order efficiencies |
 | `mode` | 2D cross-section editor: drag structures, simulation window | n_eff/n_g/loss/TE-fraction/A_eff table, n_eff(λ), field heatmaps (\|E\|², \|H\|², components) with outlines |
-| `device` | top view: structures (prism/box/ball footprints), ports with direction, domain | \|S\|² in dB or linear, unwrapped phase, \|S\| matrix vs λ, power-balance check |
+| `device` | top view: structures (prism/box/ball footprints), ports with direction, domain; solver chips (EME, BPM, FDFD, FDTD) and te/tm for 2D devices | \|S\|² in dB or linear, unwrapped phase, \|S\| matrix vs λ, power-balance check |
 | `bands` | unit-cell editor with lattice vectors and tiled neighbours; 3D crystals shown in top view | band diagram with k labels, gaps shaded per polarization and complete gaps, gap table (a/λ and nm) |
 | `circuit` | netlist graph: instances, connections, external ports | S-parameters, as for devices |
 | `optimization` | the device top view plus hatched design regions | objective and binarization history, S-parameters of the final design |
@@ -37,7 +39,7 @@ the library appears automatically, with generated editors.
   eight templates (sphere, dimer, core–shell, rod, spheroid, trimer, Si sphere, sphere on glass) and four
   FDTD set-ups that the library has laid out and solved: a dimer gap with a mesh override and two mirror
   planes, a graded-grid plasmon ring-down with its resonances, a focused Gaussian beam, and a sphere on glass
-  at 45°.
+  at 45°. Devices also start from *FDTD: 2D waveguide, TE ports*, solved by the FDTD device solver.
 - **Editing in the scene.** Clicking an object in the scene selects it in the object tree. Its
   Properties panel shows the generated form, with the material picker for every material field.
   Drags are undoable spec ops.
@@ -49,9 +51,59 @@ the library appears automatically, with generated editors.
   - Device choice and per-backend option forms come from each backend's `options_schema`.
   - Estimate gives memory and runtime before you run.
   - Solve and Compare send jobs with live progress over WebSocket; you can cancel and re-run.
+  - Parameter sweep (in the Run panel) submits one solve per value; see "Every solver" below.
 - **Files and sharing.** Open and save spec JSON (recent files, drag and drop). Deep links take the
   form `?spec=`, `?spec_url=` and `lightsmith-studio://open?spec=`. "Copy as Python / CLI / curl /
   MCP" is available, and `window.studio` scripting with a live JSON panel.
+
+## Every solver: preview, compare, sweep
+
+Studio is the GUI for the whole suite: Mie, T-matrix, DDA, BEM, quasistatic, FDTD, RCWA, TMM, FDE, FDFD, EME,
+BPM, PWE, circuits and inverse design. The Run panel lists every backend for the problem kind with the
+library's verdict, and the scene editors of the 2D kinds have chips to pick one.
+
+**Preview** shows what the chosen backend will discretise, before the run, as the library plans it:
+
+| Backend | Preview |
+|---|---|
+| Mie (`lightsmith-mie`) | multipole order n_max per wavelength, with the size parameter |
+| T-matrix (`treams`) | lmax per particle (more for close neighbours), modes |
+| DDA | the occupied dipole lattice in 3D, coloured by material; spacing, dipoles per diameter |
+| BEM | the surface mesh in 3D; triangles, edges, unknowns |
+| FDTD | scattering and emission: cell widths per axis (the Scene tab draws the boxes, CPML, mirror planes and mesh slice); devices: the grid with PML, port source and monitor planes, te/tm |
+| RCWA | the Fourier orders (m, n) and the layers, each uniform in z |
+| FDE | the cross-section grid, PML, boundary, structure outlines |
+| FDFD | the device grid, PML and ports |
+| EME | the cells along the propagation axis and the modes per cell |
+| BPM | the cells and the propagation steps per cell |
+| PWE | the k-path in reduced coordinates and the plane-wave set per polarisation |
+| inverse design | the FDFD grid, the design regions and their filter radius in cells |
+| TMM, quasistatic, circuits | nothing to discretise: the estimate's figures |
+
+| | |
+|---|---|
+| ![DDA dipole lattice](docs/screenshots/preview-dda.png) | ![EME cells](docs/screenshots/preview-eme.png) |
+| ![RCWA harmonics](docs/screenshots/preview-rcwa.png) | ![PWE k-path and plane waves](docs/screenshots/preview-pwe.png) |
+| ![FDTD device grid and ports](docs/screenshots/preview-fdtd-device.png) | ![Inverse design grid](docs/screenshots/preview-inverse.png) |
+
+The layout comes from the server's proposed `POST /v1/layout`, else (development) the dev server's library
+bridge running `scripts/solver_layout.py`, else the estimate's figures; the mock serves the library's layouts
+of the shipped examples. See API_ASSUMPTIONS.md, "Proposed: solver layouts".
+
+**Compare** works for every problem kind. Tick backends under *Compare* in the Run panel (or tick finished runs
+in Results) and the Compare tab overlays one quantity across them (cross sections, R/T/A per polarisation and
+angle, n_eff and n_g per mode, \|S\|² per port pair, bands, decay rates, the objective history), plots the
+relative or absolute difference from a reference you choose, and tabulates max and RMS differences with the
+worst quantity per run. Runs on different wavelength grids are interpolated onto the reference's.
+
+![Compare across backends](docs/screenshots/compare-backends.png)
+
+**Sweep** runs one solve per value of one number: any number in the spec (a radius, a position, the medium
+index, a layer thickness…) or a numeric option of the chosen method (`options.dda.dipoles_per_diameter`,
+`options.fdtd.spacing_nm`…). The Sweep tab reduces each run's curve to a number (peak, its position, minimum,
+mean, value at x) and plots it against the parameter, beside the overlaid curves.
+
+![Sweep of a sphere radius](docs/screenshots/sweep.png)
 
 ## FDTD set-up
 
@@ -85,7 +137,7 @@ CAD tool does, but without computing any of them itself.
 Where the layout comes from (`src/state/layout.ts`):
 1. the compute server's `POST /v1/layout`, which Studio proposes to the library (see API_ASSUMPTIONS.md,
    "Proposed: FDTD layout");
-2. in development, the Vite dev server's **library bridge**: it runs `scripts/fdtd_layout.py` against
+2. in development, the Vite dev server's **library bridge**: it runs `scripts/solver_layout.py` against
    `../lightsmith` (needs `uv`; off with `STUDIO_LIBRARY_BRIDGE=0`). That script is the reference
    implementation of the proposal, built on the library's own planning code;
 3. the server's `POST /v1/estimate`, which gives the mirror planes only;
@@ -250,14 +302,15 @@ Embedding pages can `postMessage({studio: "getSpec"|"setSpec"|"apply"|"validate"
   schemas, and bundled n/k data. `uv run --project ../lightsmith python scripts/make_fixtures.py`
   re-solves the per-kind examples, and lays out and solves the FDTD templates
   (`src/generated/fdtd_templates.json`, `fixtures/fdtd/`; on the GPU when there is one). It is slow: RCWA
-  takes minutes. `make_fixtures.py fdtd emission` redoes only those.
+  takes minutes. `make_fixtures.py fdtd layouts` redoes only the FDTD templates and the layout snapshots of
+  every example for every backend (`src/generated/layouts.json`), which take seconds.
 
 ## Tests
 
 ```bash
-npm test                                   # Vitest: logic, parity, kinds, FDTD snapshots, auth, config
-npm run test:e2e                           # Playwright, against the mock: scattering flows, FDTD set-up, every problem kind
-STUDIO_LIBRARY_BRIDGE=1 npx playwright test fdtd-library   # FDTD layouts from ../lightsmith through the dev-server bridge
+npm test                                   # Vitest: logic, parity, kinds, FDTD and solver-layout snapshots, curves, sweeps, auth, config
+npm run test:e2e                           # Playwright, against the mock: scattering flows, FDTD set-up, every solver's preview, compare, sweeps, every problem kind
+STUDIO_LIBRARY_BRIDGE=1 npx playwright test fdtd-library   # layouts from ../lightsmith through the dev-server bridge
 STUDIO_COMPUTE_URL=http://localhost:8200 npx playwright test real-server   # against a live compute server
 ```
 
@@ -268,12 +321,12 @@ Screenshots from the e2e runs are in `docs/screenshots/`.
 ```
 src/config/      brand.ts (names), runtime.ts (deployment config)
 src/schema/      schema helpers, generated form, validation
-src/state/       spec store (undo/redo, ops), connection, jobs, kinds, templates, actions
+src/state/       spec store (undo/redo, ops), connection, jobs, kinds, templates, actions, layouts (solver previews), sweeps
 src/api/         compute + materials clients, in-browser mock server
-src/components/  viewport (3D), fdtd/ (FDTD objects in 3D), kinds/ (2D/stack/netlist scenes), viewers/ (result kinds), panels, dialogs
-src/lib/         auth (OIDC / Community), codegen, deep links, files, CSV, scripting
-src/generated/   library snapshot, solved examples, FDTD templates with their layouts
-scripts/         sync_library.py, make_fixtures.py, fdtd_layout.py (the library's FDTD layout of a spec)
+src/components/  viewport (3D), fdtd/ (FDTD objects in 3D), kinds/ (2D/stack/netlist scenes), viewers/ (result kinds), Preview, CompareView, Sweep, panels, dialogs
+src/lib/         auth (OIDC / Community), codegen, deep links, files, CSV, scripting, curves (every result kind as curves)
+src/generated/   library snapshot, solved examples, FDTD templates, every example's solver layouts
+scripts/         sync_library.py, make_fixtures.py, solver_layout.py (what each backend will discretise for a spec)
 docker/          nginx template, runtime-config entrypoint
 src-tauri/       desktop shell
 e2e/             Playwright flows

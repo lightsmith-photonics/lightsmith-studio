@@ -37,8 +37,8 @@ or runtime `config.js` (Docker `STUDIO_*`).
 | `GET /v1/backends` | — | `name`, `method`, `problem_kinds`, `gpu`, `available`, `unavailable_reason`, `license` and `citation` feed the method list and the support table. `options_schema` generates the per-method options forms. While the server sends `null`, Studio uses the bundled snapshot's schema for the same backend name. | verified |
 | `POST /v1/supports` | `{simulation}` | `[{name, method, available, unavailable_reason, supported, reason}]`. On 404 or 405 (older servers) Studio falls back to one `/v1/estimate` per backend, cached per spec. | contract (fallback verified) |
 | `GET /v1/doctor` | — | Device menu and settings. | verified |
-| `POST /v1/estimate` | `{simulation, method, device}` | The whole dict, with labels for known keys. Runtime comes from `estimated_runtime_s`, else `seconds_estimate`, else a labelled heuristic. For FDTD scattering, `symmetry` (`mirrors`, `planes_nm`, `reduction`, `skipped`) and `graded_grid` are also the fallback for the 3D mirror planes when the server has no `/v1/layout`. | verified |
-| `POST /v1/layout` | `{simulation, method: "fdtd"}` | The FDTD layout for the 3D view and the mesh preview; see "Proposed: FDTD layout" below. On 404 or 405 Studio falls back to the dev server's library bridge (development only), then to `/v1/estimate`. | **proposed** |
+| `POST /v1/estimate` | `{simulation, method, device}` | The whole dict, with labels for known keys. Runtime comes from `estimated_runtime_s`, else `seconds_estimate`, else a labelled heuristic. When the server has no `/v1/layout`, the estimate's figures fill the Preview tab, and for FDTD scattering its `symmetry` (`mirrors`, `planes_nm`, `reduction`, `skipped`) gives the 3D mirror planes. | verified |
+| `POST /v1/layout` | `{simulation, method}` | What the backend will discretise (any backend), for the Preview tab, the FDTD objects in the 3D view and the mesh slice; see "Proposed: solver layouts" below. On 404 or 405 Studio falls back to the dev server's library bridge (development only), then to `/v1/estimate`. | **proposed** |
 | `POST /v1/jobs` → 202 | `{simulation, kind: "solve"\|"compare", method, methods, reference, device, label}` | `job_id` (or `id`) and `status`. A 422 at submit is shown as a toast. Optimization problems are submitted as `solve`, which the API treats like `optimize`. | verified (scattering) |
 | `GET /v1/jobs/{id}` | — | `status`, `progress`, `stage`, `message`, `error`, `result`. When `result` is null on success, Studio fetches `result_url`. | verified |
 | `DELETE /v1/jobs/{id}` | — | Cancel. Falls back to `POST …/cancel`. | contract |
@@ -60,74 +60,100 @@ servers:
 `cross_sections` results may also carry `resonances[]` (`wavelength_nm`, `energy_ev`, `q`, `amplitude`), from
 time-domain solvers when `outputs.resonances` is set; Studio shows them as a Q table.
 
-`compare` returns `{reference, results: {name: <any kind>}, relative_difference}`. For
-non-scattering kinds Studio overlays the per-method results in the kind's viewer.
+`compare` returns `{reference, results: {name: <any kind>}, relative_difference}`. Studio overlays the
+per-method results in the kind's viewer and differences them in the Compare tab (see "Studio-side: comparisons
+and sweeps").
 
-## Proposed: FDTD layout (library and compute API)
+## Proposed: solver layouts (library and compute API)
 
-**The gap.** Studio draws the FDTD simulation objects (TFSF box, flux monitors, CPML, auto-refined regions,
-mirror planes) and previews the Yee grid on a slice. It must not compute them itself: they depend on the
-library's sizing rules (padding, gaps, CPML cells, `grid: "auto"` refinement, grading, symmetry detection), and
-a TypeScript copy would drift from the solver. Today the library exposes none of this:
+**The gap.** For every backend, Studio shows what the solver will discretise before the run: the FDTD Yee grid,
+boxes and CPML; the DDA dipole lattice; the BEM surface mesh; the Mie and T-matrix multipole orders; the RCWA
+harmonics and layers; the FDE and FDFD grids; the EME and BPM cells; the PWE k-path and plane waves; the inverse
+design grid and design regions. It must not compute any of these itself: they depend on each backend's sizing
+rules, and a TypeScript copy would drift from the solvers. Today the library exposes only part of this:
 
-- `lightsmith estimate` / `POST /v1/estimate` (FDTD) returns `grid` (the *run's* shape, halved by symmetry),
-  `cells`, `spacing_nm`, `symmetry` (with `planes_nm`) and, on graded grids, `graded_grid` (min/max spacing,
-  `max_ratio`). That is enough for the mirror planes, not for node planes or boxes.
-- The node planes and boxes exist only inside the private planning code
-  (`lightsmith.backends._fdtd.scattering.plan` → `Layout`; `emission.plan`).
+- `lightsmith estimate` / `POST /v1/estimate` returns per-backend counts (dipoles, unknowns, `grid` shapes,
+  `n_max`, `harmonics`, `num_plane_waves`, FDTD `symmetry.planes_nm` and `graded_grid`…). These are figures
+  only: no positions, nodes, meshes, cells or port planes.
+- The geometry exists only inside each backend's private planning code (listed below), which `estimate` and
+  `solve` already call.
 
-**Proposal.** A small, read-only call next to `estimate`, which never runs the solver:
+**Proposal.** One optional, read-only `layout()` per backend, next to `estimate`, which never solves:
 
 ```python
-ls.layout(problem, method="fdtd") -> dict          # Backend.layout(sim), optional per backend
+ls.layout(problem, method="auto") -> dict          # Backend.layout(problem, device) -> dict, optional
 ```
 ```bash
-lightsmith layout spec.json [--method fdtd]        # JSON on stdout, errors as for estimate
+lightsmith layout spec.json [--method dda]         # JSON on stdout, errors as for estimate
 ```
 ```http
-POST /v1/layout  {"simulation": {...}, "method": "fdtd"}   ->  200 <the dict>   (lightsmith-cloud)
+POST /v1/layout  {"simulation": {...}, "method": "auto"}   ->  200 <the envelope>   (lightsmith-cloud)
 ```
-and an MCP tool `get_layout` with the same arguments. The dict, for scattering and emission problems (the
-whole grid, before any mirror halving; world coordinates in nm):
+and an MCP tool `get_layout` with the same arguments. `method` resolves as for `solve`.
+
+**Common envelope** (every backend):
 
 ```json
 {
-  "backend": "lightsmith-fdtd", "method": "fdtd", "problem_kind": "scattering",
-  "grid": {"kind": "uniform | graded", "base_spacing_nm": 8.0, "shape": [81, 81, 81], "cells": 531441,
-           "nodes_nm": [[...x], [...y], [...z]], "spacing_min_nm": [2, 2, 2], "spacing_max_nm": [8, 8, 8],
-           "max_ratio": 1.25},
-  "domain_nm": {"lo_nm": [...], "hi_nm": [...]},
-  "pml": {"cells": 10, "inner_lo_nm": [...], "inner_hi_nm": [...]},
-  "boxes": [{"name": "tfsf", "label": "...", "lo_nm": [...], "hi_nm": [...]},
-            {"name": "flux_total", ...}, {"name": "flux_scattered", ...}],
-  "regions": [{"source": "auto", "particle": 0, "lo_nm": [...], "hi_nm": [...], "spacing_nm": [2, 2, 2]},
-              {"source": "mesh_override", "index": 0, ...}],
-  "symmetry": {"mirrors": {"x": "antisymmetric (PEC)"}, "reduction": 2, "planes_nm": {"x": 0.0}, "skipped": "..."},
-  "run_cells": 142884,
+  "backend": "lightsmith-dda", "method": "dda", "problem_kind": "scattering",
+  "layout_kind": "dipole_lattice",
+  "summary": {"dipoles": 2176, "spacing (nm)": 4.98, "...": "..."},
+  "payload": {"...": "per layout_kind, below"},
+  "estimate": {"...": "the backend's estimate() for the same problem"},
   "warnings": [],
   "error": null
 }
 ```
 
-- Emission problems have one box, `flux_radiated` (the closed radiated-power box), and no mirror planes.
-- `error` carries the library's refusal (for example a graded grid with a Gaussian beam) while the geometry is
-  still returned, so the user sees what they built and why it will not run. Errors that leave no geometry are
-  raised as usual (422 over HTTP).
-- Sizes: `nodes_nm` is one float per node plane (a few hundred per axis), never per cell.
-- Periodic and layer-stack problems (a unit cell) could follow with the same shape; Studio does not ask for
-  them yet.
+- `summary` is an ordered map of the key figures, already labelled; a GUI or an agent can show it as is.
+- `error` carries the library's refusal (for example a graded FDTD grid with a Gaussian beam) while the
+  geometry is still returned where it can be computed. Errors that leave no geometry are raised as usual (422
+  over HTTP).
+- Backends without a layout return `layout_kind: "none"`, a `summary` from their estimate, and `payload.note`.
+- Sizes stay small: node planes per axis, never per cell; points and triangles are capped and subsampled, with
+  the true counts and the `stride` reported.
 
-**Reference implementation.** `scripts/fdtd_layout.py` in this repository builds exactly this dict from the
-library's private planning functions, so it reuses the solver's code path rather than copying it. It is what
-Studio uses until the library ships `layout`:
+**Payloads** (world coordinates in nm):
+
+| `layout_kind` | Backends | Payload | Library source (private today) |
+|---|---|---|---|
+| `yee_grid` | FDTD scattering, emission | `grid` (`kind`, `shape`, `cells`, `nodes_nm[3]`, `spacing_min/max_nm`, `max_ratio`), `domain_nm`, `pml` (`cells`, inner faces), `boxes[]` (tfsf, flux_total, flux_scattered; emission: flux_radiated), `regions[]` (auto, mesh_override), `symmetry` | `_fdtd.scattering` (`grid_regions`, `spacing`, `_bbox`), `_fdtd.setup` (`graded_layout`, `scattering_layout`), `_fdtd.symmetry.find`, `_fdtd.emission.plan` |
+| `device_grid` | FDTD and FDFD devices, inverse design | `nodes_nm[2 or 3]`, `pml_inner_lo/hi_nm`, `ports[]` (`name`, `axis`, `direction`, `source_nm`, FDTD `monitor_nm`, `window_nm`, `num_modes`), `two_d`; inverse: `design_regions[]` (`shape`, extent, `filter_radius_cells`) | `_fdtd.device.plan` (`grid`, `frames`); `FDFD.engine(p).grid` / `.ports`; `inverse.parametrization.region_map` on `FDFD.design_grid` |
+| `dipole_lattice` | DDA | `spacing_nm`, `dipoles_per_diameter`, `grid`, `n_dipoles`, `points_nm[]`, `material_slot[]`, `stride`, `discretization`, `extrapolate` | `dda._lattice(sim, npd, discretization)` |
+| `surface_mesh` | BEM | `mesh_size_nm`, `verts_nm[]`, `tris[]`, `tri_surface[]`, `n_triangles`, `n_edges`, `stride` | `NativeBEM._mesh_size`, `_bem.mesh.build_mesh` |
+| `multipoles` | Mie (per wavelength), T-matrix (per particle) | Mie: `wavelengths_nm`, `n_max[]`, `size_parameter[]`; T-matrix: `lmax[]`, `modes`, `lmax_global`, `positions_nm` | `mie_native.NativeMie._setup`, `_n_max`; `tmatrix_treams._Plan` |
+| `harmonics` | RCWA | `orders_max`, `harmonics[]` (m, n), `layers[]` (`thickness_nm`, `patterned`) | `rcwa._orders`, `_rcwa.fourier.harmonic_set` |
+| `cross_section_grid` | FDE | `x_nm`, `y_nm`, `dx_nm`, `dy_nm`, `pml_cells`, `symmetry`, `boundary`, `num_modes` | `fde._grid` |
+| `cells` | EME, BPM | `axis`, `lo_nm`, `hi_nm`, `cells[]` (`start_nm`, `stop_nm`; BPM: `steps`, `dz_nm`), `cross_section`; EME: `modes_per_cell`; BPM: `step_nm` | `NativeEME._setup` / `NativeBPM._setup`, `_eme.slice_device` |
+| `plane_waves` | PWE | `k_reduced[]`, `k_distance[]`, `k_labels`, per polarisation `solver`, `num_plane_waves`, `matrix_size`, FFT `grid`, dense `g_indices[]` | `pwe._cell`, `pwe.k_path`, `_pwe.engine.make_plan` |
+| `none` | TMM, quasistatic, circuits, miepython (order internal), FDTD periodic and layer stacks (not yet) | `note` | — |
+
+**Reference implementation.** `scripts/solver_layout.py` in this repository builds exactly this envelope from
+those private functions, so it reuses each solver's code path rather than copying it, and never solves. Studio
+uses it until the library ships `layout`:
 
 - the Vite dev server runs it for `POST /__library/v1/layout` (`vite.config.ts`, development only, needs `uv`
   and `../lightsmith`; off with `STUDIO_LIBRARY_BRIDGE=0`);
-- `scripts/make_fixtures.py` snapshots the layouts of the FDTD templates (`src/generated/fdtd_templates.json`),
-  which the in-browser mock serves for those exact specs.
+- `scripts/make_fixtures.py` snapshots the layouts of every example for every backend that runs it
+  (`src/generated/layouts.json`, and the FDTD templates in `fdtd_templates.json`), which the in-browser mock
+  serves for those exact specs, together with the estimate recorded alongside.
 
-Moving it into the library is a matter of putting `layout()` beside `NativeFDTD.estimate` and registering the
-CLI, MCP and HTTP routes; the private imports in the script then go away.
+Moving it into the library is a matter of a `layout()` classmethod per backend beside `estimate` (the bodies
+are the script's per-solver functions), `ls.layout` in `api.py`, and the CLI, MCP and HTTP routes; the private
+imports in the script then go away. If a backend renames its planning functions first, the script breaks and
+the GUI falls back to the estimate figures.
+
+## Studio-side: comparisons and sweeps
+
+- **Compare** uses `POST /v1/jobs` with `kind: "compare"` and `methods`, and also overlays any finished runs of
+  the same problem kind. Differences are computed in Studio from the results' own arrays (curves per result
+  kind: cross sections, R/T/A, n_eff, |S|², bands, decay rates, objective history), relative to a chosen
+  reference with the library's floor (10⁻³ of the reference's largest value). Runs on different x grids are
+  interpolated onto the reference's.
+- **Sweeps** have no library or server call: a sweep is N ordinary `solve` jobs, each a complete spec with one
+  number changed (a spec field, or `options[method][field]`, created if absent), validated against the schema
+  first. A server-side sweep job (one submission, shared set-up such as DDA interaction matrices or FDE
+  operators) would be cheaper; Studio would use it if offered, with the same per-value results.
 
 ## Materials (materials-db, `http://localhost:8100`)
 

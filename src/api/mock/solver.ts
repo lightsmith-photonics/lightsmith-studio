@@ -14,14 +14,16 @@ export const MOCK_WARNING = "mock server: approximate in-browser physics, not a 
 export const CANNED_WARNING = "mock server: this is the library's solved EXAMPLE for this problem kind, not a solution of your spec";
 export const SNAPSHOT_WARNING = "mock server: the library's FDTD solution of this exact spec, from Studio's snapshot (scripts/make_fixtures.py)";
 
+/** As the library's AUTO_ORDER (lightsmith/api.py). */
 const AUTO_ORDER: Record<string, string[]> = {
-  scattering: ["mie", "tmatrix", "dda", "fdtd"],
+  scattering: ["mie", "tmatrix", "bem", "dda", "fdtd"],
   layer_stack: ["tmm", "rcwa", "fdtd"],
   periodic: ["rcwa", "fdfd", "fdtd"],
   mode: ["fde"],
-  device: ["eme", "fdfd", "fdtd"],
+  device: ["eme", "bpm", "fdfd", "fdtd"],
   bands: ["pwe", "fdfd"],
   circuit: ["circuit"],
+  optimization: ["inverse"],
   emission: ["mie", "fdtd"],
 };
 

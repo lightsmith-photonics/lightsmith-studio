@@ -11,6 +11,7 @@ import { useSpec } from "../state/store";
 import { linspace, runSweep, sweepParams } from "../state/sweep";
 import { toast } from "../state/toast";
 import { useUi } from "../state/ui";
+import { MockNotice } from "./MockNotice";
 import { ExportButtons, Plot, type PlotHandle } from "./Plot";
 
 export function SweepSetup(props: { disabled: boolean }) {
@@ -147,6 +148,7 @@ export function SweepView() {
   const failed = runs.filter((r) => r.status === "failed");
   return (
     <div className="results-main padded" data-testid="sweep-view">
+      <MockNotice results={[...results.values()]} />
       <div className="row wrap">
         <h4 className="grow">
           Sweep of <code>{sw.param}</code> · {withCurves.length}/{runs.length} done{serverSweep ? " · one server job" : ""}

@@ -9,6 +9,7 @@ import { curvesOf, difference, type Curve } from "../lib/curves";
 import { exportFile } from "../lib/files";
 import { useJobs } from "../state/jobs";
 import { useSeries } from "./Results";
+import { MockNotice } from "./MockNotice";
 import { ExportButtons, Plot, type PlotHandle } from "./Plot";
 
 const COLORS = ["#4f9dff", "#ff8a4c", "#38d39f", "#e45bd0", "#f2c94c", "#8c7bff", "#ff5d5d", "#4cd7e4"];
@@ -127,6 +128,7 @@ export function CompareView() {
 
   return (
     <div className="results-main padded" data-testid="compare-view">
+      <MockNotice results={[...raw.values()]} />
       <div className="row wrap">
         <h4 className="grow">Compare {KIND_NAME[kind] ?? kind}</h4>
         {kinds.length > 1 && (

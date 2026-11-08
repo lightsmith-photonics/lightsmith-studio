@@ -522,14 +522,9 @@ export function compareMock(spec: JsonObject, methods: string[] | null, device: 
   const list = methods ?? supportsAll(spec).filter((s) => s.available && s.supported).map((s) => s.name);
   if (!list.length) throw new Error("no available backend supports this problem");
   const results: Record<string, ScatteringResult> = {};
-  for (const m of list) {
-    const r = solveMock(spec, m, device);
-    // Give each mock backend a small, method-dependent deviation so the compare view has something to show.
-    const amp = r.method === "dda" ? 0.03 : r.method === "tmatrix" ? 0.002 : 0;
-    const f = r.wavelengths_nm.map((w) => 1 + amp * (0.5 + 0.5 * Math.cos(w / 40)));
-    const scale = (a: number[]) => a.map((x, i) => x * f[i]);
-    results[m] = { ...r, c_ext_nm2: scale(r.c_ext_nm2), c_sca_nm2: scale(r.c_sca_nm2), c_abs_nm2: scale(r.c_abs_nm2) };
-  }
+  // Every mock backend runs the same in-browser physics (MOCK_WARNING says so): their differences are zero. Real
+  // differences between methods come from a compute server.
+  for (const m of list) results[m] = solveMock(spec, m, device);
   const ref = reference ?? Object.keys(results).find((k) => results[k].method === "mie") ?? list[0];
   const relative_difference: CompareResult["relative_difference"] = {};
   for (const [m, r] of Object.entries(results)) {

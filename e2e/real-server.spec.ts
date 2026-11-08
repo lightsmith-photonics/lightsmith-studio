@@ -50,12 +50,12 @@ async function solve(page: Page) {
 /** The latest result, as Studio stored it. */
 const lastResult = (page: Page): Promise<any> => page.evaluate(() => window.studio.result(window.studio.jobs()[0].key));
 
-// A cold server's estimate worker imports the library on its first request, and on a busy machine that can outlast
-// the server's 60 s limit on one estimate ("the problem is too large"). Warm it up before the tests.
+// A cold server's estimate worker imports the library and initialises CUDA on its first request, and with the GPU
+// busy that can outlast the server's 60 s limit on one estimate ("the problem is too large"). Warm it up first.
 test.beforeAll(async ({ request }) => {
   test.setTimeout(900_000);
   await expect
-    .poll(async () => (await request.post(`${url}/v1/estimate`, { data: { simulation: small, method: "lightsmith-mie", device: "cpu" }, timeout: 180_000 })).status(), { timeout: 800_000, intervals: [5_000] })
+    .poll(async () => (await request.post(`${url}/v1/estimate`, { data: { simulation: small, method: "lightsmith-dda", device: "auto" }, timeout: 180_000 })).status(), { timeout: 800_000, intervals: [5_000] })
     .toBe(200);
 });
 
@@ -81,8 +81,11 @@ test("live: supports reasons, estimate, solve with near field, compare", async (
   await expect(page.getByTestId("support-miepython")).toContainText("near_field", { timeout: 30_000 });
 
   await page.getByTestId("method-select").selectOption("dda");
-  await page.getByTestId("estimate-btn").click();
-  await expect(page.getByTestId("estimate-dipoles")).not.toBeEmpty({ timeout: 120_000 });
+  // (the server may restart its estimate worker in between: see beforeAll)
+  await expect(async () => {
+    await page.getByTestId("estimate-btn").click();
+    await expect(page.getByTestId("estimate-dipoles")).not.toBeEmpty({ timeout: 90_000 });
+  }).toPass({ timeout: 400_000 });
 
   await page.getByTestId("method-select").selectOption("auto");
   await page.getByTestId("solve-btn").click();

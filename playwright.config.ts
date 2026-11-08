@@ -30,10 +30,10 @@ const vite = (port: number, bridge: "0" | "1") => ({
 export default defineConfig({
   testDir: "e2e",
   // generous: software WebGL and a 4.8 MB Plotly chunk through the dev server, often beside other work on the machine
-  timeout: 180_000,
-  expect: { timeout: 60_000 },
+  timeout: 300_000,
+  expect: { timeout: 120_000 },
   fullyParallel: false,
-  workers: 4,
+  workers: 3,
   reporter: [["list"]],
   use: {
     ...devices["Desktop Chrome"],

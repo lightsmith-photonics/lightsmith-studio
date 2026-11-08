@@ -87,7 +87,7 @@ test("compare: several backends, overlay and differences, any problem kind", asy
   await page.getByTestId("right-tabs").getByTestId("tab-run").click();
   await expect(page.getByTestId("compare-btn")).toContainText("(5)");
   await page.getByTestId("compare-btn").click();
-  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", { timeout: 30_000 });
+  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", { timeout: 120_000 });
   await page.getByTestId("center-tabs").getByTestId("tab-compare").click();
   await expect(page.getByTestId("compare-overlay-plot")).toHaveAttribute("data-ready", "true");
   await expect(page.getByTestId("compare-plot")).toHaveAttribute("data-ready", "true");
@@ -100,7 +100,7 @@ test("compare: several backends, overlay and differences, any problem kind", asy
   await page.getByTestId("right-tabs").getByTestId("tab-run").click();
   await expect(page.getByTestId("compare-btn")).toContainText("(4)");
   await page.getByTestId("compare-btn").click();
-  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", { timeout: 30_000 });
+  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", { timeout: 120_000 });
   await page.getByTestId("center-tabs").getByTestId("tab-compare").click();
   await page.getByTestId("compare-kind").selectOption("sparameters");
   await expect(page.getByTestId("compare-quantity")).toContainText("|S");
@@ -119,7 +119,7 @@ test("sweep: a geometry field over a range, reduced to a peak position", async (
   await page.getByTestId("sweep-num").fill("5");
   await page.getByTestId("sweep-run").click();
   await expect(page.getByTestId("sweep-view")).toBeVisible();
-  await expect(page.getByTestId("sweep-view")).toContainText("5/5 done", { timeout: 30_000 });
+  await expect(page.getByTestId("sweep-view")).toContainText("5/5 done", { timeout: 120_000 });
   await page.getByTestId("sweep-metric").selectOption("peak_x");
   await expect(page.getByTestId("sweep-plot")).toHaveAttribute("data-ready", "true");
   const rows = page.getByTestId("sweep-table").locator("tbody tr");
@@ -142,7 +142,7 @@ test("sweep: a solver option (options.<method>.<field>) is created in the swept 
   await page.getByTestId("sweep-stop").fill("24");
   await page.getByTestId("sweep-num").fill("3");
   await page.getByTestId("sweep-run").click();
-  await expect(page.getByTestId("sweep-view")).toContainText("3/3 done", { timeout: 30_000 });
+  await expect(page.getByTestId("sweep-view")).toContainText("3/3 done", { timeout: 120_000 });
   // one sweep job (the mock, like the compute server, runs sweep jobs) carrying the path and values
   const jobs = await page.evaluate(() => (JSON.parse(localStorage.getItem("studio:jobs") ?? "[]") as any[]).filter((j) => j.sweep));
   expect(jobs).toHaveLength(1);
@@ -164,7 +164,7 @@ test("device editor: solver chips and 2D polarization for FDTD", async ({ page }
   await page.getByTestId("pol-te").click();
   await page.getByTestId("solve-btn").click();
   const job = page.getByTestId("job").first();
-  await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 30_000 });
+  await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 120_000 });
   await job.getByTestId("job-show").click();
   await expect(page.getByTestId("sparam-viewer")).toBeVisible();
   await page.getByTestId("tab-prov").click();

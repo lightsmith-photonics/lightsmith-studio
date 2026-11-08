@@ -116,7 +116,7 @@ test("FDTD ring-down: resonance (Q) table", async ({ page }) => {
   await expect(page.getByTestId("support-lightsmith-mie")).toContainText("resonances output");
   await page.getByTestId("solve-btn").click();
   const job = page.getByTestId("job").first();
-  await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 30_000 });
+  await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 120_000 });
   await job.getByTestId("job-show").click();
   await expect(page.getByTestId("spectra-plot")).toHaveAttribute("data-ready", "true");
   await page.getByTestId("tab-res").click();

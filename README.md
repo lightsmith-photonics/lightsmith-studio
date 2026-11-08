@@ -305,8 +305,8 @@ Embedding pages can `postMessage({studio: "getSpec"|"setSpec"|"apply"|"validate"
   ```
 - **Templates.** `src/test/kinds.test.ts` checks that every kind's template validates against the
   schema, and that every solved example's result kind has a viewer.
-- **Snapshot.** The current snapshot matches the library's `main` (a6fa0a8): the schema, backends and layouts were
-  regenerated from it unchanged. `npm run sync:library` refreshes the library snapshot: schema, backends with options
+- **Snapshot.** The schema, backends and solver layouts are regenerated from the library's `main` (f3f6389); the
+  solved examples were last re-solved on ecfb638 with `discretization()`. `npm run sync:library` refreshes the library snapshot: schema, backends with options
   schemas, and bundled n/k data. `uv run --project ../lightsmith python scripts/make_fixtures.py`
   re-solves the per-kind examples, and lays out and solves the FDTD templates
   (`src/generated/fdtd_templates.json`, `fixtures/fdtd/`; on the GPU when there is one). It is slow: RCWA

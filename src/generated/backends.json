@@ -648,7 +648,7 @@
     },
     "discretization": {
      "default": "center",
-     "description": "center: classic staircase with volume rescaling. weighted (experimental): boundary sites mix full-site polarizabilities by volume fraction.",
+     "description": "center: classic staircase with volume rescaling. weighted: boundary sites mix full-site polarizabilities by volume fraction; as accurate on dielectrics, but BiCGStab often fails to converge on metals.",
      "enum": [
       "center",
       "weighted"
@@ -715,7 +715,7 @@
       }
      ],
      "default": null,
-     "description": "dipoles_per_diameter values to extrapolate to zero dipole size, e.g. [12, 16, 24]. Quadratic in 1/npd for 3+ values, linear for 2. Experimental: staircase noise makes it unreliable for metal spheres.",
+     "description": "dipoles_per_diameter values to extrapolate to zero dipole size, e.g. [12, 16, 24]. Quadratic in 1/npd for 3+ values, linear for 2. Improves smooth (dielectric) ladders; staircase noise makes it unreliable for metals.",
      "title": "Extrapolate"
     }
    },
@@ -1460,7 +1460,7 @@
   ],
   "license": "MIT",
   "gpu": true,
-  "differentiable": false,
+  "differentiable": true,
   "available": true,
   "unavailable_reason": null,
   "citation": "Bohren & Huffman (1983); Yang, Appl. Opt. 42, 1710 (2003); Pena & Pal, Comput. Phys. Commun. 180, 2348 (2009)",
@@ -1518,7 +1518,7 @@
   ],
   "license": "MIT",
   "gpu": true,
-  "differentiable": false,
+  "differentiable": true,
   "available": true,
   "unavailable_reason": null,
   "citation": "Ho, Chan & Soukoulis, PRL 65, 3152 (1990); Johnson & Joannopoulos, Opt. Express 8, 173 (2001); Farjadpour et al., Opt. Lett. 31, 2972 (2006)",

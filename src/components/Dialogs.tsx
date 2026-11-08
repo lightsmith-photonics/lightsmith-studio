@@ -193,7 +193,7 @@ export function SettingsDialog() {
             </div>
           </div>
           <p className="muted small">
-            An API key (<code>osk_…</code>) is the alternative to signing in, e.g. on the desktop app. It is kept in this browser's local storage
+            An API key (<code>lsk_…</code>) is the alternative to signing in, e.g. on the desktop app. It is kept in this browser's local storage
             {isTauri() ? " (app data on desktop)" : ""} and sent only to the URL above. A signed-in session takes precedence.
           </p>
         </>

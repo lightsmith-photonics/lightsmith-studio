@@ -22,7 +22,9 @@ export function Properties() {
   const kind = typeof spec.kind === "string" ? spec.kind : "scattering";
   const head = selection[0];
   let body: React.ReactNode;
-  if (kind !== "scattering") body = <SpecForm path={selection} label={selection.length ? prettyKey(String(selection[selection.length - 1])) : undefined} />;
+  if (head === "options" && selectedOverride(selection) == null) body = <OptionsEditor base={[]} />;
+  else if (kind === "optimization" && head === "device" && selection[1] === "options") body = <OptionsEditor base={["device"]} />;
+  else if (kind !== "scattering") body = <SpecForm path={selection} label={selection.length ? prettyKey(String(selection[selection.length - 1])) : undefined} />;
   else if (selection.length === 0) body = <WholeSpec />;
   else if (head === "particles" && typeof selection[1] === "number") body = <ParticleEditor index={selection[1]} />;
   else if (head === "illumination" || head === "medium_index" || head === "orientation_average") body = <EnvironmentEditor />;
@@ -30,7 +32,6 @@ export function Properties() {
   else if (head === "substrate") body = <SubstrateEditor />;
   else if (head === "outputs") body = <OutputsEditor focus={selection[1] as string | undefined} />;
   else if (selectedOverride(selection) != null) body = <MeshOverrideEditor index={selectedOverride(selection)!} />;
-  else if (head === "options") body = <OptionsEditor />;
   else body = <SpecForm path={selection} label={prettyKey(String(selection[selection.length - 1]))} />;
   return (
     <div className="properties" data-testid="properties">
@@ -403,7 +404,22 @@ function OutputsEditor(props: { focus?: string }) {
           <SpecForm path={["outputs", "far_field"]} label="Far field" />
         </Section>
       )}
-      {!props.focus && <OtherFields path={["outputs"]} known={["cross_sections", "near_field", "far_field"]} />}
+      {(!props.focus || props.focus === "resonances") && (
+        <Section
+          title="Resonances"
+          right={
+            !isObject(out.resonances) ? (
+              <button className="small" data-testid="enable-resonances" onClick={() => apply({ op: "replace", path: ["outputs", "resonances"], value: {} })}>
+                Enable
+              </button>
+            ) : undefined
+          }
+        >
+          <p className="muted small">Wavelength, Q and amplitude of each resonance, from the ring-down of a pulse (time-domain solvers).</p>
+          <SpecForm path={["outputs", "resonances"]} label="Resonances" />
+        </Section>
+      )}
+      {!props.focus && <OtherFields path={["outputs"]} known={["cross_sections", "near_field", "far_field", "resonances"]} />}
     </>
   );
 }
@@ -478,27 +494,35 @@ function MeshOverrideEditor(props: { index: number }) {
 
 // --- solver options ----------------------------------------------------------------
 
-function OptionsEditor() {
+/**
+ * `options` of the problem at `base` ([] or, for inverse design, ["device"]): one form per method and backend of this
+ * kind, generated from each backend's options schema, over the raw dict. Inverse design passes options to the
+ * differentiable device solvers it runs, so those are the backends listed for it.
+ */
+function OptionsEditor({ base }: { base: Path }) {
   const spec = useSpec((s) => s.spec);
   const apply = useSpec((s) => s.apply);
   const backends = useConnection((s) => s.backends);
   const issues = useIssueMap();
   const kind = typeof spec.kind === "string" ? spec.kind : "scattering";
-  const opts = isObject(spec.options) ? spec.options : {};
-  const relevant = backends.filter((b) => !b.problem_kinds || b.problem_kinds.includes(kind));
+  const root = [...base, "options"];
+  const stored = getAt(spec, root);
+  const opts = isObject(stored ?? null) ? (stored as JsonObject) : {};
+  const relevant = kind === "optimization" ? backends.filter((b) => b.problem_kinds?.includes("device") && b.differentiable) : backends.filter((b) => !b.problem_kinds || b.problem_kinds.includes(kind));
   const methods = [...new Set(relevant.map((b) => b.method))];
   const known = new Set([...methods, ...relevant.map((b) => b.name)]);
   const setKey = (key: string, value: Json | undefined) => {
     if (value === undefined) {
-      if (key in opts) apply({ op: "remove", path: ["options", key] });
-    } else apply({ op: "replace", path: ["options", key] , value }, { coalesceKey: `options/${key}` });
+      if (key in opts) apply({ op: "remove", path: [...root, key] });
+    } else apply({ op: "replace", path: [...root, key], value }, { coalesceKey: `${root.join("/")}/${key}` });
   };
   return (
     <>
-      <Section title="Solver options">
+      <Section title={base.length ? "Solver options of the device" : "Solver options"}>
         <p className="muted small">
           <code>options[method]</code> applies to every backend of that method; <code>options[backend]</code> applies to one backend and wins. Forms come from each backend's
-          options model when the server publishes it.
+          options model.
+          {kind === "optimization" && !base.length ? " For inverse design they are merged over the device's options, key by key: set only what differs." : ""}
         </p>
       </Section>
       {methods.map((m) => {
@@ -524,11 +548,11 @@ function OptionsEditor() {
                       doc={new SchemaDoc(os)}
                       node={os}
                       value={value ?? {}}
-                      path={["options", key]}
+                      path={[...root, key]}
                       issues={issues}
                       overrides={OVERRIDES}
                       onChange={(path, v) => {
-                        const rel = path.slice(2);
+                        const rel = path.slice(root.length + 1);
                         const next = JSON.parse(JSON.stringify(value ?? {}));
                         if (rel.length === 0) return setKey(key, v);
                         let o = next;
@@ -549,7 +573,7 @@ function OptionsEditor() {
       })}
       <Section title="Raw options (all keys)">
         {Object.keys(opts).some((k) => !known.has(k)) && <div className="warn-box">Keys not matching any backend or method on this server: {Object.keys(opts).filter((k) => !known.has(k)).join(", ")}</div>}
-        <SpecForm path={["options"]} label="options" />
+        <SpecForm path={root} label="options" />
       </Section>
     </>
   );

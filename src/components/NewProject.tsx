@@ -64,6 +64,10 @@ export function NewProjectDialog() {
                   <span className="muted small">{t.description}</span>
                 </button>
               ))}
+              <button className="start-item" onClick={() => pick(() => newProblemOfKind(kind, "blank"))} data-testid="start-blank">
+                <b>Blank</b>
+                <span className="muted small">Required fields only, filled with schema defaults.</span>
+              </button>
             </div>
           ) : (
             <div className="start-list">

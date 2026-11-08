@@ -449,9 +449,10 @@ export function PreviewView() {
   const runnable = (list ?? []).filter((s) => s.available && s.supported).map((s) => s.name);
   const fromRun = relevant.find((b) => b.name === conn.method) ?? relevant.find((b) => b.method === conn.method && runnable.includes(b.name));
   const [sel, setSel] = useState<string | null>(null);
-  const backend = (sel && relevant.some((b) => b.name === sel) ? sel : null) ?? fromRun?.name ?? runnable[0] ?? relevant[0]?.name ?? "auto";
+  // "auto": what a solve with method auto would run, as the library resolves it (the layout names the backend)
+  const backend = (sel && relevant.some((b) => b.name === sel) ? sel : null) ?? fromRun?.name ?? "auto";
   useEffect(() => {
-    if (backend !== "auto") pv.request(spec, backend);
+    pv.request(spec, backend);
   }, [spec, backend]); // eslint-disable-line react-hooks/exhaustive-deps
   const L = pv.method === backend ? pv.solver : null;
   const summary = L?.summary ?? (pv.partial ? Object.fromEntries(Object.entries(pv.partial.estimate).filter(([k, v]) => !["backend", "method", "framework", "device"].includes(k) && (typeof v !== "object" || Array.isArray(v)))) : null);
@@ -462,6 +463,7 @@ export function PreviewView() {
         <label className="small">
           backend{" "}
           <select value={backend} onChange={(e) => setSel(e.target.value)} data-testid="preview-backend">
+            <option value="auto">auto{backend === "auto" && L ? ` (${L.backend})` : ""}</option>
             {relevant.map((b) => (
               <option key={b.name} value={b.name}>
                 {b.name} ({b.method}){list && !runnable.includes(b.name) ? " — not for this spec" : ""}

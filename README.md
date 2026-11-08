@@ -241,9 +241,10 @@ the user's **Lightsmith Community** account, in one of two ways:
 - **`community`: token handoff.** Studio redirects to
   `{COMMUNITY_URL}/studio/connect?return_to=<studio url>&state=<nonce>`. The Community app signs the
   user in and redirects back to
-  `<return_to>#access_token=<compute JWT>&token_type=Bearer&expires_in=<s>&state=<nonce>`.
-  > **The Community app does not have this endpoint yet.** The contract is in
-  > API_ASSUMPTIONS.md and the shared notes.
+  `<return_to>#access_token=<compute JWT>&token_type=Bearer&expires_in=<s>&state=<nonce>`. The token lasts an hour;
+  then Studio asks you to sign in again. Studio's address must be Community's `STUDIO_URL` or be listed in its
+  `STUDIO_CONNECT_ORIGINS`. An emailed sign-in link opens a new tab: Studio is signed in there, and the tab you started
+  from stays on Community's "check your email" page.
 - **`oidc`.** Standard Authorization Code flow with PKCE. Use it when the Community app (or the
   deployment's identity provider) acts as an OpenID provider. The IdP must allow Studio's URL as a
   redirect URI and allow CORS on discovery and on the token endpoint.

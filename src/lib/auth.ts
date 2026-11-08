@@ -7,7 +7,8 @@
 //      GET {communityUrl}/studio/connect?return_to=<studio url>&state=<nonce>
 //      -> 302 <return_to>#access_token=<jwt>&token_type=Bearer&expires_in=<s>&state=<nonce>
 //
-// Tokens live in sessionStorage (per tab, gone when the tab closes), never in localStorage.
+// Tokens live in sessionStorage (per tab, gone when the tab closes), never in localStorage. The nonce of a sign-in
+// under way is in localStorage: an emailed sign-in link opens a new tab, and that tab has to be able to finish it.
 
 import type { OidcConfig, RuntimeConfig } from "../config/runtime";
 
@@ -21,11 +22,20 @@ export interface Session {
 
 const SESSION_KEY = "studio:session";
 const PENDING_KEY = "studio:auth-pending";
+const PENDING_MAX_AGE_MS = 3_600_000;
 const listeners = new Set<(s: Session | null) => void>();
 
 function store(): Storage | undefined {
   try {
     return globalThis.sessionStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+function pendingStore(): Storage | undefined {
+  try {
+    return globalThis.localStorage;
   } catch {
     return undefined;
   }
@@ -56,7 +66,7 @@ export function signOut() {
   setSession(null);
 }
 
-/** Use a token obtained elsewhere (e.g. copied from the Community account page). */
+/** Use a token obtained elsewhere: a compute API key (`lsk_`) or a pasted access token. */
 export function setManualToken(token: string) {
   setSession({ accessToken: token.trim(), expiresAt: jwtExpiry(token), name: jwtName(token), source: "manual" });
 }
@@ -108,6 +118,8 @@ interface Pending {
   state: string;
   verifier?: string;
   returnTo: string;
+  /** Epoch ms; a sign-in left unfinished for longer no longer counts. */
+  startedAt: number;
 }
 
 async function discover(oidc: OidcConfig) {
@@ -122,7 +134,7 @@ export async function signIn(cfg: RuntimeConfig["auth"]) {
   if (cfg.mode === "oidc" && cfg.oidc) {
     const meta = await discover(cfg.oidc);
     const verifier = randomString(48);
-    store()?.setItem(PENDING_KEY, JSON.stringify({ kind: "oidc", state, verifier, returnTo } satisfies Pending));
+    pendingStore()?.setItem(PENDING_KEY, JSON.stringify({ kind: "oidc", state, verifier, returnTo, startedAt: Date.now() } satisfies Pending));
     const url = new URL(meta.authorization_endpoint);
     url.search = new URLSearchParams({
       response_type: "code",
@@ -138,7 +150,7 @@ export async function signIn(cfg: RuntimeConfig["auth"]) {
     return;
   }
   if (cfg.mode === "community" && cfg.communityUrl) {
-    store()?.setItem(PENDING_KEY, JSON.stringify({ kind: "community", state, returnTo } satisfies Pending));
+    pendingStore()?.setItem(PENDING_KEY, JSON.stringify({ kind: "community", state, returnTo, startedAt: Date.now() } satisfies Pending));
     const url = new URL(`${cfg.communityUrl.replace(/\/+$/, "")}/studio/connect`);
     url.search = new URLSearchParams({ return_to: redirectUri(), state }).toString();
     location.assign(url.toString());
@@ -152,15 +164,29 @@ export async function signIn(cfg: RuntimeConfig["auth"]) {
  * Must run before anything else reads the address bar.
  */
 export async function completeSignIn(cfg: RuntimeConfig["auth"]): Promise<boolean> {
-  const raw = store()?.getItem(PENDING_KEY);
-  if (!raw) return false;
-  const pending = JSON.parse(raw) as Pending;
+  const raw = pendingStore()?.getItem(PENDING_KEY);
+  let pending: Pending | null = null;
+  try {
+    pending = raw ? (JSON.parse(raw) as Pending) : null;
+  } catch {
+    pendingStore()?.removeItem(PENDING_KEY);
+  }
+  if (pending && !(Date.now() - pending.startedAt < PENDING_MAX_AGE_MS)) {
+    pendingStore()?.removeItem(PENDING_KEY);
+    pending = null;
+  }
+  if (!pending) {
+    // A handoff nobody here asked for (a stale or crafted link): never leave a token in the address bar.
+    if (/(^#|&)access_token=/.test(location.hash)) history.replaceState(null, "", location.pathname + location.search);
+    return false;
+  }
   const query = new URLSearchParams(location.search);
   const frag = new URLSearchParams(location.hash.slice(1));
   const params = pending.kind === "community" ? frag : query;
   if (!params.has("state") && !params.has("error")) return false;
-  store()?.removeItem(PENDING_KEY);
-  const clean = () => history.replaceState(null, "", pending.returnTo);
+  pendingStore()?.removeItem(PENDING_KEY);
+  const { returnTo } = pending;
+  const clean = () => history.replaceState(null, "", returnTo);
   try {
     if (params.get("error")) throw new Error(`${params.get("error")}: ${params.get("error_description") ?? ""}`);
     if (params.get("state") !== pending.state) throw new Error("sign-in state mismatch; please try again");

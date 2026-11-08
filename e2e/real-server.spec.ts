@@ -272,6 +272,40 @@ test("live: compare devices across EME and BPM, with their real differences", as
   expect(Object.keys(cmp.results).sort()).toEqual(["lightsmith-bpm", "lightsmith-eme"]);
 });
 
+// The solvers no other test reaches, each solved by the library through the Run tab. FDTD on coarse grids: this is about
+// Studio getting a real result of every solver back and showing it, not the result's accuracy (the library tests that).
+const BACKENDS = ["lightsmith-mie", "miepython", "treams", "lightsmith-quasistatic", "lightsmith-bem", "lightsmith-dda", "lightsmith-tmm", "lightsmith-rcwa", "lightsmith-eme", "lightsmith-bpm", "lightsmith-fdfd", "lightsmith-fdtd"];
+const FEW = { wavelengths: { start_nm: 450, stop_nm: 750, num: 5 } }; // an oblique or dispersive FDTD run is one job per wavelength
+const SOLVERS: { kind: string; methods: string[]; fdtd: Record<string, number>; edit?: Record<string, unknown> }[] = [
+  { kind: "scattering", methods: ["lightsmith-mie", "miepython", "lightsmith-quasistatic", "lightsmith-fdtd"], fdtd: { spacing_nm: 8 } },
+  { kind: "layer_stack", methods: ["lightsmith-tmm", "lightsmith-fdtd"], fdtd: { spacing_nm: 10 }, edit: { ...FEW, angles_deg: [0] } },
+  { kind: "periodic", methods: ["lightsmith-rcwa", "lightsmith-fdtd"], fdtd: { spacing_nm: 15 }, edit: FEW },
+  { kind: "device", methods: ["lightsmith-eme", "lightsmith-fdfd", "lightsmith-fdtd"], fdtd: { spacing_nm: 40 } },
+];
+for (const c of SOLVERS) {
+  test(`live: ${c.kind}: ${c.methods.join(", ")}`, async ({ page }) => {
+    await newProject(page, c.kind);
+    const current = await spec(page);
+    await page.evaluate((v) => window.studio.apply({ op: "replace", path: ["options"], value: v }), { ...current.options, fdtd: { ...current.options?.fdtd, ...c.fdtd } });
+    if (c.kind === "scattering") await page.evaluate(() => window.studio.apply({ op: "replace", path: ["outputs"], value: { cross_sections: true, near_field: null, far_field: null } }));
+    for (const [key, value] of Object.entries(c.edit ?? {})) await page.evaluate(([k, v]) => window.studio.apply({ op: "replace", path: [k as string], value: v as any }), [key, value] as const);
+    await runTab(page);
+    await expect(page.getByTestId(`support-${c.methods[0]}`)).toContainText("supported", { timeout: 120_000 });
+    for (const name of BACKENDS) {
+      const box = page.getByRole("checkbox", { name, exact: true });
+      if (!(await box.count()) || !(await box.isEnabled())) continue;
+      await box.setChecked(c.methods.includes(name));
+    }
+    await expect(page.getByTestId("compare-btn")).toContainText(`(${c.methods.length})`);
+    await page.getByTestId("compare-btn").click();
+    await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", JOB);
+    await page.getByTestId("center-tabs").getByTestId("tab-compare").click();
+    await expect(page.getByTestId("compare-table")).toBeVisible();
+    const cmp = await lastResult(page);
+    expect(Object.keys(cmp.results).sort()).toEqual([...c.methods].sort());
+  });
+}
+
 test("live: emission without a radiation pattern: Mie and FDTD, compared", async ({ page }) => {
   await newProject(page, "emission");
   await page.evaluate(() => window.studio.apply({ op: "replace", path: ["radiation_pattern"], value: null }));

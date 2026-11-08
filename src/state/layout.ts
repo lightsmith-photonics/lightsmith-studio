@@ -104,8 +104,9 @@ function createLayoutStore(defaultMethod: string): UseBoundStore<StoreApi<Layout
         try {
           return ok(await client.layout(spec, method), client.kind === "mock" ? "snapshot" : "server");
         } catch (e) {
-          if (!(e instanceof ApiError) || (e.status !== 404 && e.status !== 405)) return keep((e as Error).message);
-          missing = client.kind === "mock" ? (e as Error).message : "this compute server has no POST /v1/discretization";
+          // 404/405: an older server. 501: a server with no estimate worker, or whose library has no discretization().
+          if (!(e instanceof ApiError) || (e.status !== 404 && e.status !== 405 && e.status !== 501)) return keep((e as Error).message);
+          missing = client.kind === "mock" ? (e as Error).message : "this compute server cannot answer POST /v1/discretization";
         }
         try {
           const l = await fromBridge(spec, method);

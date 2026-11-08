@@ -173,14 +173,14 @@ Mie's payload also names the order `rule`: Wiscombe's for `lightsmith-mie`, and 
 
 Configured by `auth.mode` in the runtime config.
 
-- **`community`** (**proposed** for the Community app, `../lightsmith-community`):
+- **`community`** (implemented in `../lightsmith-community`, `src/app/studio/connect/route.ts`):
   1. Studio requests `GET {communityUrl}/studio/connect?return_to=<studio origin+path>&state=<nonce>`.
-  2. The Community app signs the user in. It should check `return_to` against an allow-list of
-     Studio origins.
+  2. The Community app signs the user in. It refuses any `return_to` that is not on the origin of its
+     `STUDIO_URL` or in `STUDIO_CONNECT_ORIGINS` (400, no redirect).
   3. It responds `302 <return_to>#access_token=<JWT for the compute service>&token_type=Bearer&expires_in=<seconds>&state=<nonce>`.
 
   The JWT is the same one the compute service already verifies: HS256 with `PLATFORM_JWT_SECRET`,
-  `sub`, `name`, `aud: "compute"`. It should be short-lived, at most an hour. Using the fragment
+  `sub`, `name`, `aud: "compute"`, always with `role: "user"`, for an hour. Using the fragment
   keeps the token out of server logs. Studio checks `state`, stores the token in `sessionStorage`
   and removes the fragment from the address bar.
 - **`oidc`** (standard):

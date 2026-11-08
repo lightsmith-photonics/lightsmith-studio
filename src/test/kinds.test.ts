@@ -103,7 +103,7 @@ describe("sign-in", () => {
     const payload = Buffer.from(JSON.stringify({ sub: "u1", name: "Ada", exp: Math.floor(Date.now() / 1000) + 300 })).toString("base64url");
     const token = `h.${payload}.s`;
     expect(jwtPayload(token)?.name).toBe("Ada");
-    sessionStorage.setItem("studio:auth-pending", JSON.stringify({ kind: "community", state: "S1", returnTo: "http://localhost:3000/" }));
+    localStorage.setItem("studio:auth-pending", JSON.stringify({ kind: "community", state: "S1", returnTo: "http://localhost:3000/", startedAt: Date.now() }));
     history.replaceState(null, "", `/#access_token=${token}&token_type=Bearer&expires_in=300&state=S1`);
     expect(await completeSignIn({ mode: "community", communityUrl: "https://web.example" })).toBe(true);
     expect(getSession()).toMatchObject({ accessToken: token, name: "Ada", source: "community" });
@@ -113,9 +113,35 @@ describe("sign-in", () => {
   });
 
   it("rejects a state mismatch", async () => {
-    sessionStorage.setItem("studio:auth-pending", JSON.stringify({ kind: "community", state: "good", returnTo: "http://localhost:3000/" }));
+    localStorage.setItem("studio:auth-pending", JSON.stringify({ kind: "community", state: "good", returnTo: "http://localhost:3000/", startedAt: Date.now() }));
     history.replaceState(null, "", "/#access_token=x&state=evil");
     await expect(completeSignIn({ mode: "community", communityUrl: "https://web.example" })).rejects.toThrow(/state mismatch/);
     expect(getSession()).toBeNull();
+    expect(location.hash).toBe("");
+  });
+
+  it("ignores a handoff nobody asked for, and takes the token out of the address bar", async () => {
+    localStorage.removeItem("studio:auth-pending");
+    history.replaceState(null, "", "/?x=1#access_token=stolen&state=S");
+    expect(await completeSignIn({ mode: "community", communityUrl: "https://web.example" })).toBe(false);
+    expect(getSession()).toBeNull();
+    expect(location.hash).toBe("");
+    expect(location.search).toBe("?x=1");
+  });
+
+  it("no longer accepts a sign-in left unfinished for over an hour", async () => {
+    localStorage.setItem("studio:auth-pending", JSON.stringify({ kind: "community", state: "S1", returnTo: "http://localhost:3000/", startedAt: Date.now() - 3_700_000 }));
+    history.replaceState(null, "", "/#access_token=x&state=S1");
+    expect(await completeSignIn({ mode: "community", communityUrl: "https://web.example" })).toBe(false);
+    expect(getSession()).toBeNull();
+    expect(localStorage.getItem("studio:auth-pending")).toBeNull();
+    expect(location.hash).toBe("");
+  });
+
+  it("survives a pending entry that is not JSON", async () => {
+    localStorage.setItem("studio:auth-pending", "{");
+    history.replaceState(null, "", "/");
+    expect(await completeSignIn({ mode: "community", communityUrl: "https://web.example" })).toBe(false);
+    expect(localStorage.getItem("studio:auth-pending")).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ import { useSpec } from "../state/store";
 import { addParticle, deleteSelection, duplicateSelection } from "../state/actions";
 import { PARTICLE_PRESETS } from "../state/templates";
 import { kindMeta } from "../state/kinds";
+import { addMeshOverride, meshOverrides } from "../state/fdtd";
 import { useIssues } from "./SpecForm";
 
 const CURATED = new Set(["kind", "schema_version", "particles", "medium_index", "illumination", "wavelengths", "substrate", "orientation_average", "outputs", "options"]);
@@ -54,40 +55,13 @@ export function shapeLabel(shape: Json): string {
   }
 }
 
-export function ObjectTree() {
+/** The particles of a scattering or emission problem: add from presets, duplicate, delete. */
+function ParticleNodes({ errs }: { errs: (p: Path) => number }) {
   const spec = useSpec((s) => s.spec);
-  const doc = useConnection((s) => s.schema);
-  const issues = useIssues();
   const [menu, setMenu] = useState(false);
-  const errs = (prefix: Path) => issues.filter((i) => prefix.every((p, j) => i.path[j] === p)).length;
-  const kind = typeof spec.kind === "string" ? spec.kind : "scattering";
-  const node = doc.resolve(doc.nodeAt(doc.problemNode(), spec, []) ?? {});
-  const variantNode = node.oneOf || node.anyOf ? doc.resolve(doc.problemKinds().find((k) => k.kind === kind)?.node ?? {}) : node;
-  const topProps = Object.keys(variantNode.properties ?? {});
-
-  if (kind !== "scattering") {
-    const meta = kindMeta(kind, variantNode.title);
-    return (
-      <div className="tree" role="tree" data-testid="object-tree">
-        <Node path={[]} label={<b>{meta.icon} {meta.label}</b>} errors={issues.length} />
-        {topProps
-          .filter((k) => k !== "kind")
-          .map((k) => (
-            <TopNode key={k} k={k} value={spec[k]} errs={errs} />
-          ))}
-      </div>
-    );
-  }
-
   const particles = ((spec.particles as Json[]) ?? []).filter(isObject) as JsonObject[];
-  const outputs = isObject(spec.outputs) ? spec.outputs : {};
-  const extra = topProps.filter((k) => !CURATED.has(k));
   return (
-    <div className="tree" role="tree" data-testid="object-tree">
-      <Node path={[]} label={<b>Simulation</b>} errors={issues.length} />
-      <Node path={["illumination"]} depth={1} label={`Environment · n=${spec.medium_index ?? 1}`} errors={errs(["illumination"]) + errs(["medium_index"])} />
-      <Node path={["wavelengths"]} depth={1} label={wavelengthSummary(spec.wavelengths)} errors={errs(["wavelengths"])} />
-      <Node path={["substrate"]} depth={1} label={isObject(spec.substrate) ? `Substrate · ${materialLabel(spec.substrate.material)}` : "Substrate (off)"} off={!isObject(spec.substrate)} errors={errs(["substrate"])} />
+    <>
       <div className="tree-section">
         <span>Particles ({particles.length})</span>
         <span className="spacer" />
@@ -131,9 +105,74 @@ export function ObjectTree() {
           }
         />
       ))}
+    </>
+  );
+}
+
+export function ObjectTree() {
+  const spec = useSpec((s) => s.spec);
+  const doc = useConnection((s) => s.schema);
+  const issues = useIssues();
+  const errs = (prefix: Path) => issues.filter((i) => prefix.every((p, j) => i.path[j] === p)).length;
+  const kind = typeof spec.kind === "string" ? spec.kind : "scattering";
+  const node = doc.resolve(doc.nodeAt(doc.problemNode(), spec, []) ?? {});
+  const variantNode = node.oneOf || node.anyOf ? doc.resolve(doc.problemKinds().find((k) => k.kind === kind)?.node ?? {}) : node;
+  const topProps = Object.keys(variantNode.properties ?? {});
+
+  if (kind !== "scattering") {
+    const meta = kindMeta(kind, variantNode.title);
+    return (
+      <div className="tree" role="tree" data-testid="object-tree">
+        <Node path={[]} label={<b>{meta.icon} {meta.label}</b>} errors={issues.length} />
+        {topProps
+          .filter((k) => k !== "kind")
+          .map((k) => (k === "particles" && kind === "emission" ? <ParticleNodes key={k} errs={errs} /> : <TopNode key={k} k={k} value={spec[k]} errs={errs} />))}
+      </div>
+    );
+  }
+
+  const outputs = isObject(spec.outputs) ? spec.outputs : {};
+  const overrides = meshOverrides(spec);
+  const ill = isObject(spec.illumination) ? spec.illumination : {};
+  const extra = topProps.filter((k) => !CURATED.has(k));
+  return (
+    <div className="tree" role="tree" data-testid="object-tree">
+      <Node path={[]} label={<b>Simulation</b>} errors={issues.length} />
+      <Node path={["illumination"]} depth={1} label={`Environment · n=${spec.medium_index ?? 1}${ill.kind === "gaussian_beam" ? ` · beam w₀ ${ill.waist_nm} nm` : ""}`} errors={errs(["illumination"]) + errs(["medium_index"])} />
+      <Node path={["wavelengths"]} depth={1} label={wavelengthSummary(spec.wavelengths)} errors={errs(["wavelengths"])} />
+      <Node path={["substrate"]} depth={1} label={isObject(spec.substrate) ? `Substrate · ${materialLabel(spec.substrate.material)}` : "Substrate (off)"} off={!isObject(spec.substrate)} errors={errs(["substrate"])} />
+      <ParticleNodes errs={errs} />
       <Node path={["outputs"]} depth={1} label="Outputs" errors={errs(["outputs"])} />
       <Node path={["outputs", "near_field"]} depth={2} label={isObject(outputs.near_field) ? `Near field (${outputs.near_field.plane ?? "xz"})` : "Near field (off)"} off={!isObject(outputs.near_field)} />
       <Node path={["outputs", "far_field"]} depth={2} label={isObject(outputs.far_field) ? "Far field" : "Far field (off)"} off={!isObject(outputs.far_field)} />
+      <Node path={["outputs", "resonances"]} depth={2} label={isObject(outputs.resonances) ? "Resonances (Q)" : "Resonances (off)"} off={!isObject(outputs.resonances)} />
+      <div className="tree-section">
+        <span title="options.fdtd.mesh_override: refinement boxes of a graded FDTD grid">FDTD mesh overrides ({overrides.length})</span>
+        <span className="spacer" />
+        <button className="icon" title="Add a mesh-override box (FDTD)" onClick={addMeshOverride} data-testid="add-mesh-override">
+          ＋
+        </button>
+      </div>
+      {overrides.map((b) => (
+        <Node
+          key={b.index}
+          path={b.path}
+          depth={1}
+          testId={`tree-override-${b.index}`}
+          errors={errs(b.path)}
+          label={
+            <>
+              <span className="swatch" style={{ background: "#e45bd0" }} />
+              Override {b.index + 1} <span className="muted">{b.spacing.every((v) => v === b.spacing[0]) ? b.spacing[0] : b.spacing.join("/")} nm · {b.size.join(" × ")}</span>
+            </>
+          }
+          actions={
+            <button className="icon danger" title="Delete" onClick={() => (useSpec.getState().apply({ op: "remove", path: b.path }), useSpec.getState().select(["options"]))}>
+              ✕
+            </button>
+          }
+        />
+      ))}
       <Node path={["options"]} depth={1} label={`Solver options${isObject(spec.options) && Object.keys(spec.options).length ? ` (${Object.keys(spec.options).join(", ")})` : ""}`} errors={errs(["options"])} />
       {extra.map((k) => (
         <Node key={k} path={[k]} depth={1} label={prettyKey(k)} errors={errs([k])} />
@@ -146,7 +185,7 @@ export function ObjectTree() {
 function itemLabel(v: Json, fallback: string): React.ReactNode {
   if (!isObject(v)) return fallback;
   const name = typeof v.name === "string" && v.name ? v.name : typeof v.label === "string" && v.label ? v.label : null;
-  const kind = isObject(v.profile) ? v.profile.kind : isObject(v.geometry) ? v.geometry.kind : typeof v.component === "string" ? v.component : v.kind;
+  const kind = isObject(v.profile) ? v.profile.kind : isObject(v.geometry) ? v.geometry.kind : isObject(v.shape) ? shapeLabel(v.shape) : typeof v.component === "string" ? v.component : v.kind;
   const mat = "material" in v ? v.material : "background" in v ? v.background : undefined;
   return (
     <>
@@ -181,6 +220,8 @@ function TopNode(props: { k: string; value: Json | undefined; errs: (p: Path) =>
       {children.map(([i, v]) => (
         <Node key={String(i)} path={[k, i]} depth={2} label={itemLabel(v, typeof i === "number" ? `#${i + 1}` : String(i))} errors={props.errs([k, i])} />
       ))}
+      {/* inverse design: the device's own solver options, with the same per-backend forms as the problem's */}
+      {k === "device" && <Node path={["device", "options"]} depth={2} label="Solver options" errors={props.errs(["device", "options"])} />}
     </>
   );
 }

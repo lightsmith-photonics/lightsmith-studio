@@ -5,6 +5,9 @@ import { useConnection } from "../state/connection";
 import { newFromTemplate, newProblemOfKind } from "../state/actions";
 import { KIND_TEMPLATES, kindMeta } from "../state/kinds";
 import { TEMPLATES } from "../state/templates";
+import { FDTD_TEMPLATES } from "../api/mock/snapshots";
+import { loadSpec } from "../state/actions";
+import { forgetCurrentFile } from "../lib/files";
 import { toast } from "../state/toast";
 import { useUi } from "../state/ui";
 import { Modal } from "./Modal";
@@ -49,12 +52,22 @@ export function NewProjectDialog() {
           <h4>Start from</h4>
           {kind === "scattering" ? (
             <div className="start-list">
+              {KIND_TEMPLATES[kind] && (
+                <button className="start-item" onClick={() => pick(() => newProblemOfKind(kind, "example"))} data-testid="start-example">
+                  <b>Example</b>
+                  <span className="muted small">A gold sphere with near and far fields, solved by the library; its Preview shows every backend's discretisation.</span>
+                </button>
+              )}
               {TEMPLATES.map((t) => (
                 <button key={t.id} className="start-item" onClick={() => pick(() => newFromTemplate(t.id))} data-testid={`start-${t.id}`}>
                   <b>{t.name}</b>
                   <span className="muted small">{t.description}</span>
                 </button>
               ))}
+              <button className="start-item" onClick={() => pick(() => newProblemOfKind(kind, "blank"))} data-testid="start-blank">
+                <b>Blank</b>
+                <span className="muted small">Required fields only, filled with schema defaults.</span>
+              </button>
             </div>
           ) : (
             <div className="start-list">
@@ -64,6 +77,12 @@ export function NewProjectDialog() {
                   <span className="muted small">A small worked example the library has solved.</span>
                 </button>
               )}
+              {FDTD_TEMPLATES.filter((t) => t.spec.kind === kind).map((t) => (
+                <button key={t.id} className="start-item" onClick={() => pick(() => (forgetCurrentFile(), loadSpec(t.spec, { fileName: null })))} data-testid={`start-${t.id}`}>
+                  <b>{t.name}</b>
+                  <span className="muted small">{t.description}</span>
+                </button>
+              ))}
               <button className="start-item" onClick={() => pick(() => newProblemOfKind(kind, "blank"))} data-testid="start-blank">
                 <b>Blank</b>
                 <span className="muted small">Required fields only, filled with schema defaults.</span>

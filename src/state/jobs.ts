@@ -28,6 +28,19 @@ export interface JobRecord {
   createdAt: string;
   finishedAt: string | null;
   hasResult: boolean;
+  /** Set on the jobs of a parameter sweep (state/sweep.ts). */
+  sweep?: SweepTag;
+}
+
+export interface SweepTag {
+  id: string;
+  /** The swept field, as a dotted path. */
+  param: string;
+  path: (string | number)[];
+  /** One job per value: this job's value. */
+  value?: number;
+  /** One server sweep job: every value. */
+  values?: number[];
 }
 
 const INDEX_KEY = "studio:jobs";
@@ -80,7 +93,7 @@ export interface JobsState {
   shown: string[];
   /** Job whose details (near field, far field, provenance) are shown. */
   active: string | null;
-  submit(operation: Operation, spec: JsonObject, opts?: { label?: string; method?: string; methods?: string[] | null; device?: string }): Promise<JobRecord>;
+  submit(operation: Operation, spec: JsonObject, opts?: { label?: string; method?: string; methods?: string[] | null; device?: string; sweep?: SweepTag }): Promise<JobRecord>;
   cancel(key: string): Promise<void>;
   rerun(key: string): Promise<JobRecord>;
   remove(key: string): void;
@@ -109,7 +122,8 @@ export const useJobs = create<JobsState>((set, get) => {
         void saveResult(rec.key, e.result).then(() => {
           patch(rec.key, { status: "succeeded", progress: 1, hasResult: true, finishedAt: new Date().toISOString() });
           const s = get();
-          set({ shown: [...new Set([...s.shown, rec.key])], active: rec.key });
+          // sweep jobs go to the Sweep tab, not into the overlay of every run
+          if (!rec.sweep) set({ shown: [...new Set([...s.shown, rec.key])], active: rec.key });
         });
         return;
       }
@@ -136,7 +150,7 @@ export const useJobs = create<JobsState>((set, get) => {
       const device = opts.device ?? conn.device;
       const methods = operation === "compare" ? (opts.methods ?? (conn.compareMethods.length ? conn.compareMethods : null)) : null;
       const label = opts.label ?? defaultLabel(operation, method, methods, spec);
-      const req: JobRequest = { operation, spec, method, device, label, ...(operation === "compare" ? { methods } : {}) };
+      const req: JobRequest = { operation, spec, method, device, label, ...(operation === "compare" ? { methods } : {}), ...(operation === "sweep" && opts.sweep ? { sweep: { path: opts.sweep.path, values: opts.sweep.values ?? [] } } : {}) };
       const state = await client.submit(req);
       const rec: JobRecord = {
         key: `${client.kind}:${state.id}`,
@@ -156,6 +170,7 @@ export const useJobs = create<JobsState>((set, get) => {
         createdAt: state.created_at ?? new Date().toISOString(),
         finishedAt: null,
         hasResult: false,
+        ...(opts.sweep ? { sweep: opts.sweep } : {}),
       };
       const jobs = [rec, ...get().jobs];
       set({ jobs });
@@ -178,7 +193,10 @@ export const useJobs = create<JobsState>((set, get) => {
     async rerun(key) {
       const rec = get().jobs.find((j) => j.key === key);
       if (!rec) throw new Error("unknown job");
-      return get().submit(rec.operation, rec.spec, { method: rec.method, methods: rec.methods, device: rec.device, label: rec.label });
+      // A server sweep job is re-run as a new sweep with the same field and values; one value of a per-value sweep
+      // (servers without sweep jobs) stays in its sweep.
+      const sweep = rec.sweep && (rec.operation === "sweep" ? { ...rec.sweep, id: `sweep-${Date.now().toString(36)}` } : rec.sweep);
+      return get().submit(rec.operation, rec.spec, { method: rec.method, methods: rec.methods, device: rec.device, label: rec.label, ...(sweep ? { sweep } : {}) });
     },
 
     remove(key) {

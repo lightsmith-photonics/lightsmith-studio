@@ -75,25 +75,35 @@ function pyArgs(a: RunArgs): string {
   return out.join(", ");
 }
 
+const isScatteringSpec = (spec: Json) => !isObject(spec) || spec.kind === undefined || spec.kind === "scattering";
+
 export function pythonCode(spec: Json, a: RunArgs): string {
   const head = `import ${LIBRARY.python} as ${LIBRARY.alias}\n\nspec = ${toPython(spec)}\n\n`;
   switch (a.operation) {
     case "estimate":
       return head + `print(${LIBRARY.alias}.estimate(spec, ${pyArgs(a)}))\n`;
     case "compare":
+      // Scattering: relative differences of the cross sections; other kinds: their own (R/T/A, |S|², n_eff, ...).
       return (
         head +
         `cmp = ${LIBRARY.alias}.compare(spec, ${pyArgs(a)})\n` +
         `print("reference:", cmp["reference"])\n` +
         `for name, diff in cmp["relative_difference"].items():\n` +
-        `    print(name, diff["c_ext_nm2"])\n`
+        `    print(name, diff)\n` +
+        `for name in cmp.get("not_compared", []):\n` +
+        `    print(name, "cannot be compared with the reference")\n`
       );
     default:
+      // Only cross sections have summary(); every result of every kind is a pydantic model.
       return (
         head +
         `print(${LIBRARY.alias}.estimate(spec, ${pyArgs(a)}))  # size / memory before running\n` +
         `result = ${LIBRARY.alias}.solve(spec, ${pyArgs(a)})\n` +
-        `print(result.summary())\n` +
+        (isScatteringSpec(spec)
+          ? `print(result.summary())\n`
+          : `with open("result.json", "w", encoding="utf-8") as f:\n` +
+            `    f.write(result.model_dump_json())\n` +
+            `print(result.kind, "from", result.backend, "written to result.json")\n`) +
         `for w in result.warnings:\n` +
         `    print("warning:", w)\n`
       );
@@ -130,14 +140,14 @@ export function curlCode(spec: Json, a: RunArgs, baseUrl: string, withKey: boole
     null,
     2,
   );
-  const auth = withKey ? ` \\\n  -H "Authorization: Bearer $OMNISCATTER_API_KEY"` : "";
+  const auth = withKey ? ` \\\n  -H "Authorization: Bearer $LIGHTSMITH_API_KEY"` : "";
   const path = a.operation === "estimate" ? "/v1/estimate" : "/v1/jobs";
   return `curl -sS -X POST ${baseUrl.replace(/\/+$/, "")}${path} \\\n  -H "Content-Type: application/json"${auth} \\\n  --data-binary @- <<'EOF'\n${body}\nEOF\n`;
 }
 
-/** Arguments for the MCP tool of the same name (LIBRARY.mcp). */
+/** Arguments for the MCP tool of the same name (LIBRARY.mcp's `estimate`, `solve` and `compare` take `problem`). */
 export function mcpCall(spec: Json, a: RunArgs): string {
-  const args: Record<string, Json> = { simulation: spec, device: a.device };
+  const args: Record<string, Json> = { problem: spec, device: a.device };
   if (a.operation === "compare") args.methods = a.methods ?? null;
   else args.method = a.method;
   return JSON.stringify({ tool: a.operation, arguments: args }, null, 2);

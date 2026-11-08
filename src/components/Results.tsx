@@ -5,14 +5,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isCompare, isScattering, resultKind, type ResultKind, type AnyResult, type CompareResult, type FarFieldData, type NearFieldData, type ScatteringResult } from "../api/types";
 import { halfExtent } from "../api/mock/solver";
-import { compareCsv, farFieldCsv, nearFieldCsv, spectraCsv } from "../lib/csv";
+import { farFieldCsv, nearFieldCsv, spectraCsv } from "../lib/csv";
 import { exportFile } from "../lib/files";
 import { isObject, type JsonObject } from "../schema/schema";
 import { loadResult, useJobs, type JobRecord } from "../state/jobs";
 import { ExportButtons, Plot, type PlotHandle } from "./Plot";
 import { Tabs } from "./Modal";
+import { MockNotice } from "./MockNotice";
 import { fmtNum } from "./Properties";
 import { BandsViewer, ModesViewer, OptimizationViewer, SParamViewer, SpectrumViewer, type Run } from "./viewers/KindResults";
+import { EmissionViewer, ResonanceTable } from "./viewers/EmissionResults";
 
 const COLORS = ["#4f9dff", "#ff8a4c", "#38d39f", "#e45bd0", "#f2c94c", "#8c7bff", "#ff5d5d", "#4cd7e4"];
 const DASH: Record<string, string> = { c_ext_nm2: "solid", c_sca_nm2: "dash", c_abs_nm2: "dot" };
@@ -64,15 +66,17 @@ export function ResultsView() {
   const active = useJobs((s) => s.active);
   const setActive = useJobs((s) => s.setActive);
   const toggle = useJobs((s) => s.toggleShown);
-  const withResults = jobs.filter((j) => j.hasResult);
+  // a server sweep job holds one result per value: the Sweep tab shows it
+  const withResults = jobs.filter((j) => j.hasResult && j.operation !== "sweep");
   const { series, raw } = useSeries(shown);
   const activeKey = active && withResults.some((j) => j.key === active) ? active : (shown[0] ?? withResults[0]?.key ?? null);
   const { series: activeSeries, raw: activeRaw } = useSeries(activeKey ? [activeKey] : []);
-  const [detail, setDetail] = useState<"near" | "far" | "prov" | "json">("near");
+  const [detail, setDetail] = useState<"near" | "far" | "res" | "prov" | "json">("near");
   const activeJob = withResults.find((j) => j.key === activeKey);
   const activeRes = activeKey ? activeRaw.get(activeKey) : undefined;
   const activeKind = activeRes ? resultKind(isCompare(activeRes) ? Object.values(activeRes.results)[0] : activeRes) : "unknown";
   const otherKind = activeKind !== "cross_sections" && activeKind !== "unknown";
+  const resonanceCount = activeSeries.reduce((n, s) => n + (s.result.resonances?.length ?? 0), 0);
   // Runs of the active result kind: the active job first, then other ticked jobs (compare jobs expand per method).
   const kindRuns = useMemo(() => {
     if (!otherKind || !activeJob || !activeRes) return [];
@@ -109,6 +113,7 @@ export function ResultsView() {
         ))}
       </div>
       <div className="results-main">
+        <MockNotice results={[activeRes]} />
         {otherKind && kindRuns.length > 0 ? (
           <KindViewer kind={activeKind} runs={kindRuns} />
         ) : series.length > 0 ? (
@@ -130,7 +135,7 @@ export function ResultsView() {
               </button>
             </div>
             <Tabs
-              value={otherKind && (detail === "near" || detail === "far") ? "prov" : detail}
+              value={otherKind && (detail === "near" || detail === "far" || detail === "res") ? "prov" : detail}
               onChange={setDetail}
               tabs={[
                 ...(otherKind
@@ -138,6 +143,7 @@ export function ResultsView() {
                   : [
                       { id: "near" as const, label: "Near field" },
                       { id: "far" as const, label: "Far field" },
+                      { id: "res" as const, label: <>Resonances{resonanceCount ? <span className="badge">{resonanceCount}</span> : null}</> },
                     ]),
                 { id: "prov", label: "Provenance & warnings" },
                 { id: "json", label: "Raw" },
@@ -145,6 +151,7 @@ export function ResultsView() {
             />
             {!otherKind && detail === "near" && <NearFieldPanel series={activeSeries} spec={activeJob.spec} />}
             {!otherKind && detail === "far" && <FarFieldPanel series={activeSeries} />}
+            {!otherKind && detail === "res" && <ResonanceTable runs={activeSeries.map((s) => ({ label: s.label, resonances: s.result.resonances ?? [] }))} />}
             {otherKind && (detail === "near" || detail === "far") && <ProvenancePanel res={activeRes} job={activeJob} />}
             {detail === "prov" && <ProvenancePanel res={activeRes} job={activeJob} />}
             {detail === "json" && <pre className="raw-json">{JSON.stringify(activeRes, (_k, v) => (Array.isArray(v) && v.length > 40 ? `[${v.length} items]` : v), 2)}</pre>}
@@ -167,6 +174,8 @@ function KindViewer({ kind, runs }: { kind: ResultKind; runs: Run<never>[] }) {
       return <BandsViewer runs={runs} />;
     case "optimization":
       return <OptimizationViewer runs={runs} />;
+    case "emission":
+      return <EmissionViewer runs={runs} />;
     default:
       return null;
   }
@@ -264,135 +273,6 @@ function SpectraPanel({ series }: { series: Series[] }) {
   );
 }
 
-/** Compare tab: relative differences of any results on the same wavelength grid. */
-export function CompareView() {
-  const shown = useJobs((s) => s.shown);
-  const jobs = useJobs((s) => s.jobs);
-  const compareJobs = jobs.filter((j) => j.operation === "compare" && j.hasResult).map((j) => j.key);
-  const keys = useMemo(() => [...new Set([...shown, ...compareJobs])], [shown, compareJobs.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { series, compares } = useSeries(keys);
-  const [ref, setRef] = useState<string | null>(null);
-  const [q, setQ] = useState<Q>("c_ext_nm2");
-  const plot = useRef<PlotHandle>(null);
-  const refSeries = series.find((s) => s.key === ref) ?? series.find((s) => s.result.method === "mie") ?? series[0];
-  const others = series.filter((s) => s !== refSeries && refSeries && sameGrid(s.result, refSeries.result));
-  const data = useMemo(
-    () =>
-      others.map((s, i) => ({
-        x: s.result.wavelengths_nm,
-        y: s.result[q].map((v, j) => (100 * (v - refSeries!.result[q][j])) / Math.max(Math.abs(refSeries!.result[q][j]), 1e-300)),
-        name: s.label,
-        mode: "lines+markers",
-        marker: { size: 4 },
-        line: { color: COLORS[(i + 1) % COLORS.length] },
-      })),
-    [others, refSeries, q],
-  );
-  if (series.length < 2)
-    return (
-      <div className="results empty" data-testid="compare-view">
-        <div>
-          <h3>Nothing to compare yet</h3>
-          <p className="muted">Run Compare in the Run panel, or overlay two or more runs with the same wavelengths.</p>
-        </div>
-      </div>
-    );
-  return (
-    <div className="results-main padded" data-testid="compare-view">
-      <div className="row wrap">
-        <h4 className="grow">Relative difference vs reference</h4>
-        <label className="small">
-          reference{" "}
-          <select value={refSeries?.key} onChange={(e) => setRef(e.target.value)} data-testid="compare-ref">
-            {series.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <select value={q} onChange={(e) => setQ(e.target.value as Q)}>
-          <option value="c_ext_nm2">C_ext</option>
-          <option value="c_sca_nm2">C_sca</option>
-          <option value="c_abs_nm2">C_abs</option>
-        </select>
-        <ExportButtons plot={plot} name="relative-difference" />
-      </div>
-      <Plot ref={plot} data={data} layout={{ xaxis: { title: { text: "vacuum wavelength (nm)" } }, yaxis: { title: { text: "(X − ref) / |ref|  (%)" }, tickformat: ".3~g" } }} height={320} testId="compare-plot" />
-      <table className="summary-table" data-testid="compare-table">
-        <thead>
-          <tr>
-            <th>Series</th>
-            <th>max |Δ|/|ref| ext</th>
-            <th>rms ext</th>
-            <th>max sca</th>
-            <th>max abs</th>
-          </tr>
-        </thead>
-        <tbody>
-          {others.map((s) => {
-            const d = (qq: Q) => rel(s.result[qq], refSeries!.result[qq]);
-            return (
-              <tr key={s.key}>
-                <td>{s.label}</td>
-                <td>{pct(d("c_ext_nm2").max)}</td>
-                <td>{pct(d("c_ext_nm2").rms)}</td>
-                <td>{pct(d("c_sca_nm2").max)}</td>
-                <td>{pct(d("c_abs_nm2").max)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {series.some((s) => refSeries && !sameGrid(s.result, refSeries.result)) && <div className="muted small">Runs on a different wavelength grid than the reference are not compared.</div>}
-      {compares.map(({ job, cmp }) => (
-        <div key={job.key} className="panel">
-          <div className="row">
-            <h4 className="grow">
-              Library compare() · {job.label} · reference <code>{cmp.reference}</code>
-            </h4>
-            <button className="small" onClick={() => void exportFile(compareCsv(cmp), "compare.csv", "text/csv")}>
-              CSV
-            </button>
-          </div>
-          <table className="summary-table">
-            <thead>
-              <tr>
-                <th>Method</th>
-                <th>Quantity</th>
-                <th>max</th>
-                <th>rms</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(cmp.relative_difference).flatMap(([m, d]) =>
-                Object.entries(d).map(([qq, v]) => (
-                  <tr key={m + qq}>
-                    <td>{m}</td>
-                    <td>{qq}</td>
-                    <td>{pct(v.max)}</td>
-                    <td>{pct(v.rms)}</td>
-                  </tr>
-                )),
-              )}
-            </tbody>
-          </table>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function sameGrid(a: ScatteringResult, b: ScatteringResult) {
-  return a.wavelengths_nm.length === b.wavelengths_nm.length && a.wavelengths_nm.every((w, i) => Math.abs(w - b.wavelengths_nm[i]) < 1e-6 * Math.max(1, w));
-}
-
-function rel(x: number[], y: number[]) {
-  const r = x.map((v, i) => Math.abs(v - y[i]) / Math.max(Math.abs(y[i]), 1e-300));
-  return { max: Math.max(...r), rms: Math.sqrt(r.reduce((s, v) => s + v * v, 0) / r.length) };
-}
-
-const pct = (x: number) => `${(100 * x).toPrecision(3)} %`;
 
 // --- near field ---------------------------------------------------------------
 
@@ -444,22 +324,27 @@ function NearFieldPanel({ series, spec }: { series: Series[]; spec: JsonObject }
   const nfs = series.flatMap((s) => (s.result.near_field ?? []).map((nf) => ({ s, nf })));
   const [i, setI] = useState(0);
   const [log, setLog] = useState(true);
+  // -1: the enhancement |E|²/|E₀|²; 0, 1, 2: |Ex|, |Ey|, |Ez| of the total field, when the backend returns it
+  const [comp, setComp] = useState(-1);
   const plot = useRef<PlotHandle>(null);
   const cur = nfs[Math.min(i, nfs.length - 1)];
+  const hasE = !!cur?.nf.e_real && !!cur.nf.e_imag;
+  const c = hasE ? comp : -1;
   const data = useMemo(() => {
     if (!cur) return [];
     const { nf } = cur;
-    // enhancement is indexed [axis1][axis2]; Plotly wants z[y][x]
+    const name = c < 0 ? "|E|²/|E₀|²" : `|E${"xyz"[c]}|`;
+    // the arrays are indexed [axis1][axis2] ([component] first for E); Plotly wants z[y][x]
     const z = nf.axis2_nm.map((_, j) => nf.axis1_nm.map((_, k) => {
-      const v = nf.enhancement[k][j];
+      const v = c < 0 ? nf.enhancement[k][j] : Math.hypot(nf.e_real![c][k][j], nf.e_imag![c][k][j]);
       return v === null || !Number.isFinite(v) ? null : log ? Math.log10(Math.max(v, 1e-12)) : v;
     }));
     return [
-      { type: "heatmap", x: nf.axis1_nm, y: nf.axis2_nm, z, colorscale: "Hot", colorbar: { title: { text: log ? "log₁₀ |E|²/|E₀|²" : "|E|²/|E₀|²", side: "right" } }, hovertemplate: `${nf.plane[0]}=%{x:.1f} nm<br>${nf.plane[1]}=%{y:.1f} nm<br>${log ? "log₁₀ " : ""}enh=%{z:.3g}<extra></extra>` },
+      { type: "heatmap", x: nf.axis1_nm, y: nf.axis2_nm, z, colorscale: "Hot", colorbar: { title: { text: log ? `log₁₀ ${name}` : name, side: "right" } }, hovertemplate: `${nf.plane[0]}=%{x:.1f} nm<br>${nf.plane[1]}=%{y:.1f} nm<br>${log ? "log₁₀ " : ""}${name}=%{z:.3g}<extra></extra>` },
       ...particleOutlines(spec, nf).map((o) => ({ x: o.x, y: o.y, mode: "lines", line: { color: "#7fd3ff", width: 1.5 }, hoverinfo: "skip", showlegend: false })),
     ];
-  }, [cur, log, spec]);
-  if (!cur) return <div className="muted pad">This run has no near-field data. Enable Outputs → Near field and run again (Mie, T-matrix and DDA backends support it).</div>;
+  }, [cur, log, spec, c]);
+  if (!cur) return <div className="muted pad">This run has no near-field data. Enable Outputs → Near field and run again; the Run panel says which backends support it.</div>;
   const nf = cur.nf;
   const max = Math.max(...nf.enhancement.flat().filter((v) => Number.isFinite(v)));
   return (
@@ -472,6 +357,14 @@ function NearFieldPanel({ series, spec }: { series: Series[]; spec: JsonObject }
             </option>
           ))}
         </select>
+        {hasE && (
+          <select value={comp} onChange={(e) => setComp(Number(e.target.value))} data-testid="near-field-component">
+            <option value={-1}>|E|²/|E₀|²</option>
+            <option value={0}>|Ex|</option>
+            <option value={1}>|Ey|</option>
+            <option value={2}>|Ez|</option>
+          </select>
+        )}
         <label className="small">
           <input type="checkbox" checked={log} onChange={(e) => setLog(e.target.checked)} /> log scale
         </label>

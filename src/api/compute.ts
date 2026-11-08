@@ -4,14 +4,18 @@
 
 import doctorJson from "../generated/doctor.json";
 import schemaJson from "../generated/schema.json";
-import { clone, isObject, type Json, type JsonObject, type JSONSchema } from "../schema/schema";
-import { CANNED_WARNING, estimateMock, MOCK_BACKENDS, problemKind, resolveBackend, solveMock, supportsAll } from "./mock/solver";
+import { clone, isObject, SchemaDoc, type Json, type JsonObject, type JSONSchema } from "../schema/schema";
+import { validateProblem } from "../schema/validate";
+import { fdtdSnapshotResult, layoutSnapshot } from "./mock/snapshots";
+import { withValue } from "../lib/specPath";
+import { CANNED_WARNING, estimateMock, MOCK_BACKENDS, problemKind, resolveBackend, SNAPSHOT_WARNING, solveMock, supportsAll } from "./mock/solver";
 import {
   ApiError,
   type BackendInfo,
   type CompareResult,
   type Doctor,
   type Estimate,
+  type SolverLayout,
   type JobEvent,
   type JobRequest,
   type JobState,
@@ -28,6 +32,11 @@ export interface ComputeClient {
   estimate(spec: Json, method: string, device: string): Promise<Estimate>;
   /** Per-backend availability and support for this spec, with the library's reasons. */
   supports(spec: Json, backends: BackendInfo[]): Promise<SupportInfo[]>;
+  /**
+   * What the backend `method` will discretise for this spec (grid, mesh, dipoles, harmonics, cells…), before any
+   * solve: `POST /v1/discretization` (lightsmith.discretization); throws ApiError with status 404 where the server lacks it.
+   */
+  layout(spec: Json, method?: string): Promise<SolverLayout>;
   submit(req: JobRequest): Promise<JobState>;
   job(id: string): Promise<JobState>;
   cancel(id: string): Promise<void>;
@@ -130,6 +139,9 @@ export class HttpComputeClient implements ComputeClient {
   estimate(spec: Json, method: string, device: string) {
     return this.req<Estimate>("POST", "/v1/estimate", { simulation: spec, method, device });
   }
+  layout(spec: Json, method = "auto") {
+    return this.req<SolverLayout>("POST", "/v1/discretization", { simulation: spec, method });
+  }
 
   private noSupportsEndpoint = false;
   private supportsCache = new Map<string, SupportInfo>();
@@ -179,6 +191,7 @@ export class HttpComputeClient implements ComputeClient {
       reference: r.reference ?? null,
       device: r.device ?? "auto",
       label: r.label ?? null,
+      ...(r.operation === "sweep" ? { sweep: r.sweep } : {}),
     };
     return normalizeJob(await this.req<RawJob>("POST", "/v1/jobs", body));
   }
@@ -337,15 +350,36 @@ export class MockComputeClient implements ComputeClient {
   }
   async estimate(spec: Json, method: string, device: string) {
     await this.delay();
+    // the library's own estimate of a shipped example (recorded with its layout), else the mock's
+    const b = wrap(() => resolveBackend(asSpec(spec), method));
+    const snap = await layoutSnapshot(spec, b.name);
+    if (snap?.estimate) return { ...(clone(snap.estimate as Json) as Estimate), note: "mock server: the library's estimate of this example (recorded on the CPU)" };
     return wrap(() => estimateMock(asSpec(spec), method, device));
   }
   async supports(spec: Json) {
     await this.delay();
     return supportsAll(asSpec(spec));
   }
+  /** Only the shipped examples: their layouts are the library's (scripts/solver_layout.py, make_fixtures.py). */
+  async layout(spec: Json, method = "auto") {
+    await this.delay();
+    const b = wrap(() => resolveBackend(asSpec(spec), method));
+    const snap = await layoutSnapshot(spec, b.name);
+    if (!snap) throw new ApiError("NotFound", "the mock server has the library's layouts of the shipped examples only", 404);
+    return clone(snap as unknown as Json) as unknown as SolverLayout;
+  }
 
   async submit(request: JobRequest): Promise<JobState> {
     await this.delay();
+    if (request.operation === "sweep") {
+      // as the compute server: every swept problem is checked before the job is queued
+      if (!request.sweep?.values.length) throw new ApiError("ValidationError", "sweep jobs need `sweep`: {path, values}", 422);
+      const doc = new SchemaDoc((this.opts.schema ?? schemaJson) as JSONSchema);
+      for (const v of request.sweep.values) {
+        const issues = validateProblem(doc, withValue(asSpec(request.spec), request.sweep.path, v));
+        if (issues.length) throw new ApiError("ValidationError", `sweep value ${v}: ${issues[0].path.join(".")} ${issues[0].message}`, 422);
+      }
+    }
     const id = `mock-${Date.now().toString(36)}-${(++this.seq).toString(36)}`;
     const job: MockJob = { id, status: "queued", progress: 0, operation: request.operation, created_at: new Date().toISOString(), request, listeners: new Set() };
     this.jobs.set(id, job);
@@ -373,8 +407,13 @@ export class MockComputeClient implements ComputeClient {
       const r = job.request;
       const spec = asSpec(r.spec);
       let result: JobState["result"];
+      let snap: Awaited<ReturnType<typeof fdtdSnapshotResult>> = null;
       if (r.operation === "estimate") result = estimateMock(spec, r.method ?? "auto", r.device ?? "auto");
-      else if (problemKind(spec) !== "scattering") result = await cannedResult(spec, r);
+      else if (r.operation === "sweep") result = (await this.sweep(spec, r)) as unknown as JobState["result"];
+      else if (r.operation === "solve" && resolveBackend(spec, r.method ?? "auto").method === "fdtd" && (snap = await fdtdSnapshotResult(spec))) {
+        const res = clone(snap.result as unknown as Json) as unknown as ScatteringResult;
+        result = { ...res, provenance: { ...res.provenance, mock: true, snapshot: snap.id }, warnings: [SNAPSHOT_WARNING, ...(res.warnings ?? [])] };
+      } else if (problemKind(spec) !== "scattering") result = await cannedResult(spec, r);
       else if (r.operation === "compare") result = compareMock(spec, r.methods ?? null, r.device ?? "auto", r.reference ?? null);
       else result = solveMock(spec, r.method ?? "auto", r.device ?? "auto");
       if ((job.status as string) === "cancelled") return;
@@ -385,6 +424,24 @@ export class MockComputeClient implements ComputeClient {
       Object.assign(job, { status: "failed", error: err, finished_at: new Date().toISOString() });
       this.emit(job, { type: "error", status: "failed", error: err });
     }
+  }
+
+  /** As the compute server's sweep jobs: one solve per value, in order; a failed value is recorded. */
+  private async sweep(spec: JsonObject, r: JobRequest) {
+    if (!r.sweep) throw new Error("sweep jobs need `sweep`: {path, values}");
+    const { path, values } = r.sweep;
+    const results: unknown[] = [];
+    const errors: Record<string, { error: string; message: string }> = {};
+    for (const [i, v] of values.entries()) {
+      const s = withValue(spec, path, v);
+      try {
+        results.push(problemKind(s) !== "scattering" ? await cannedResult(s, { ...r, operation: "solve" }) : solveMock(s, r.method ?? "auto", r.device ?? "auto"));
+      } catch (e) {
+        results.push(null);
+        errors[String(i)] = { error: "ValueError", message: (e as Error).message };
+      }
+    }
+    return { kind: "sweep", path, values, method: r.method ?? "auto", results, errors };
   }
 
   private snapshot(j: MockJob): JobState {
@@ -465,14 +522,9 @@ export function compareMock(spec: JsonObject, methods: string[] | null, device: 
   const list = methods ?? supportsAll(spec).filter((s) => s.available && s.supported).map((s) => s.name);
   if (!list.length) throw new Error("no available backend supports this problem");
   const results: Record<string, ScatteringResult> = {};
-  for (const m of list) {
-    const r = solveMock(spec, m, device);
-    // Give each mock backend a small, method-dependent deviation so the compare view has something to show.
-    const amp = r.method === "dda" ? 0.03 : r.method === "tmatrix" ? 0.002 : 0;
-    const f = r.wavelengths_nm.map((w) => 1 + amp * (0.5 + 0.5 * Math.cos(w / 40)));
-    const scale = (a: number[]) => a.map((x, i) => x * f[i]);
-    results[m] = { ...r, c_ext_nm2: scale(r.c_ext_nm2), c_sca_nm2: scale(r.c_sca_nm2), c_abs_nm2: scale(r.c_abs_nm2) };
-  }
+  // Every mock backend runs the same in-browser physics (MOCK_WARNING says so): their differences are zero. Real
+  // differences between methods come from a compute server.
+  for (const m of list) results[m] = solveMock(spec, m, device);
   const ref = reference ?? Object.keys(results).find((k) => results[k].method === "mie") ?? list[0];
   const relative_difference: CompareResult["relative_difference"] = {};
   for (const [m, r] of Object.entries(results)) {

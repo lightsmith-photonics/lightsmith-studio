@@ -30,6 +30,7 @@ export function themedLayout(layout: any): any {
     ...layout,
     xaxis: axis(layout.xaxis),
     yaxis: axis(layout.yaxis),
+    ...(layout.yaxis2 ? { yaxis2: axis({ showgrid: false, ...layout.yaxis2 }) } : {}),
     ...(layout.polar ? { polar: { bgcolor: "rgba(0,0,0,0)", ...layout.polar, radialaxis: axis(layout.polar.radialaxis), angularaxis: axis(layout.polar.angularaxis) } } : {}),
   };
 }

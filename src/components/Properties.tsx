@@ -13,6 +13,8 @@ import { deleteSelection, duplicateSelection } from "../state/actions";
 import { PARTICLE_PRESETS } from "../state/templates";
 import { shapeLabel } from "./ObjectTree";
 import { OVERRIDES, SpecForm, useIssueMap } from "./SpecForm";
+import { fdtdOptions, meshOverrides, selectedOverride } from "../state/fdtd";
+import { useLayout } from "../state/layout";
 
 export function Properties() {
   const selection = useSpec((s) => s.selection) ?? [];
@@ -20,14 +22,16 @@ export function Properties() {
   const kind = typeof spec.kind === "string" ? spec.kind : "scattering";
   const head = selection[0];
   let body: React.ReactNode;
-  if (kind !== "scattering") body = <SpecForm path={selection} label={selection.length ? prettyKey(String(selection[selection.length - 1])) : undefined} />;
+  if (head === "options" && selectedOverride(selection) == null) body = <OptionsEditor base={[]} />;
+  else if (kind === "optimization" && head === "device" && selection[1] === "options") body = <OptionsEditor base={["device"]} />;
+  else if (kind !== "scattering") body = <SpecForm path={selection} label={selection.length ? prettyKey(String(selection[selection.length - 1])) : undefined} />;
   else if (selection.length === 0) body = <WholeSpec />;
   else if (head === "particles" && typeof selection[1] === "number") body = <ParticleEditor index={selection[1]} />;
   else if (head === "illumination" || head === "medium_index" || head === "orientation_average") body = <EnvironmentEditor />;
   else if (head === "wavelengths") body = <WavelengthsEditor />;
   else if (head === "substrate") body = <SubstrateEditor />;
   else if (head === "outputs") body = <OutputsEditor focus={selection[1] as string | undefined} />;
-  else if (head === "options") body = <OptionsEditor />;
+  else if (selectedOverride(selection) != null) body = <MeshOverrideEditor index={selectedOverride(selection)!} />;
   else body = <SpecForm path={selection} label={prettyKey(String(selection[selection.length - 1]))} />;
   return (
     <div className="properties" data-testid="properties">
@@ -218,7 +222,20 @@ function EnvironmentEditor() {
           ))}
         </div>
       </Section>
-      <Section title="Plane-wave illumination">
+      <Section title={ill.kind === "gaussian_beam" ? "Gaussian-beam illumination" : "Plane-wave illumination"}>
+        <div className="chips" role="radiogroup" aria-label="illumination kind">
+          <button className={ill.kind !== "gaussian_beam" ? "chip active" : "chip"} onClick={() => ill.kind === "gaussian_beam" && apply({ op: "replace", path: ["illumination"], value: { kind: "plane_wave", direction: k, polarization: e } })} data-testid="ill-plane">
+            Plane wave
+          </button>
+          <button
+            className={ill.kind === "gaussian_beam" ? "chip active" : "chip"}
+            onClick={() => ill.kind !== "gaussian_beam" && apply({ op: "replace", path: ["illumination"], value: { kind: "gaussian_beam", direction: k, polarization: e, waist_nm: 1000, focus_nm: [0, 0, 0] } })}
+            data-testid="ill-beam"
+            title="A focused beam: its angular spectrum of plane waves (FDTD only)"
+          >
+            Gaussian beam
+          </button>
+        </div>
         <div className="field-row">
           <label className="field-label">Direction</label>
           <div className="field-input chips">
@@ -387,7 +404,22 @@ function OutputsEditor(props: { focus?: string }) {
           <SpecForm path={["outputs", "far_field"]} label="Far field" />
         </Section>
       )}
-      {!props.focus && <OtherFields path={["outputs"]} known={["cross_sections", "near_field", "far_field"]} />}
+      {(!props.focus || props.focus === "resonances") && (
+        <Section
+          title="Resonances"
+          right={
+            !isObject(out.resonances) ? (
+              <button className="small" data-testid="enable-resonances" onClick={() => apply({ op: "replace", path: ["outputs", "resonances"], value: {} })}>
+                Enable
+              </button>
+            ) : undefined
+          }
+        >
+          <p className="muted small">Wavelength, Q and amplitude of each resonance, from the ring-down of a pulse (time-domain solvers).</p>
+          <SpecForm path={["outputs", "resonances"]} label="Resonances" />
+        </Section>
+      )}
+      {!props.focus && <OtherFields path={["outputs"]} known={["cross_sections", "near_field", "far_field", "resonances"]} />}
     </>
   );
 }
@@ -396,29 +428,101 @@ function range(a: number, b: number, n: number): number[] {
   return Array.from({ length: n }, (_, i) => Number((a + ((b - a) * i) / (n - 1)).toPrecision(10)));
 }
 
+// --- FDTD mesh overrides --------------------------------------------------------------
+
+/** A mesh-override box: the generated form of the FDTD options model's MeshOverride, plus cell counts. */
+function MeshOverrideEditor(props: { index: number }) {
+  const spec = useSpec((s) => s.spec);
+  const apply = useSpec((s) => s.apply);
+  const select = useSpec((s) => s.select);
+  const backends = useConnection((s) => s.backends);
+  const issues = useIssueMap();
+  const layout = useLayout((s) => s.layout);
+  const box = meshOverrides(spec).find((b) => b.index === props.index);
+  if (!box) return <div className="muted">No mesh override {props.index + 1}</div>;
+  const os = backends.find((b) => b.method === "fdtd" && b.options_schema)?.options_schema ?? null;
+  const doc = os ? new SchemaDoc(os) : null;
+  const node = doc ? doc.resolve({ $ref: "#/$defs/MeshOverride" }) : null;
+  const value = getAt(spec, box.path);
+  const opts = fdtdOptions(spec);
+  const particles = ((spec.particles as Json[]) ?? []).filter(isObject) as JsonObject[];
+  const fitParticles = () => {
+    if (!particles.length) return;
+    const lo = [0, 1, 2].map((i) => Math.min(...particles.map((p) => ((p.position_nm as number[]) ?? [0, 0, 0])[i] - halfExtent(p.shape as JsonObject)[i])));
+    const hi = [0, 1, 2].map((i) => Math.max(...particles.map((p) => ((p.position_nm as number[]) ?? [0, 0, 0])[i] + halfExtent(p.shape as JsonObject)[i])));
+    apply([
+      { op: "replace", path: [...box.path, "center_nm"], value: lo.map((l, i) => Number(((l + hi[i]) / 2).toPrecision(8))) },
+      { op: "replace", path: [...box.path, "size_nm"], value: lo.map((l, i) => Number((hi[i] - l).toPrecision(8))) },
+    ]);
+  };
+  const region = layout?.regions.find((r) => r.source === "mesh_override" && r.index === props.index);
+  return (
+    <>
+      <Section
+        title={`Mesh override ${props.index + 1}`}
+        right={
+          <>
+            <button className="small" onClick={fitParticles} title="Cover every particle's bounding box">
+              Fit particles
+            </button>
+            <button className="small danger" onClick={() => (apply({ op: "remove", path: box.path }), select(["options"]))}>
+              Delete
+            </button>
+          </>
+        }
+      >
+        <p className="muted small">
+          FDTD refines the grid to <code>spacing_nm</code> inside this box and grades back to the base cells (<code>spacing_nm</code> option{typeof opts.spacing_nm === "number" ? `: ${opts.spacing_nm} nm` : ", or the uniform rule"}) no faster than{" "}
+          <code>grading_ratio</code> ({String(opts.grading_ratio ?? 1.25)}). Drag it in the 3D view with the move gizmo. Scattering problems with plane-wave illumination only.
+        </p>
+        {doc && node ? (
+          <SchemaForm doc={doc} node={node} value={value ?? {}} path={box.path} issues={issues} overrides={OVERRIDES} onChange={(path, v) => apply({ op: "replace", path, value: v }, { coalesceKey: path.join("/") })} />
+        ) : (
+          <SpecForm path={box.path} label="Mesh override" />
+        )}
+        <div className="muted small derived" data-testid="override-cells">
+          {box.size.map((s, i) => `${"xyz"[i]}: ${fmtNum(s / box.spacing[i])} cells`).join(" · ")}
+          {region ? ` · the library's region: ${region.lo_nm.map(fmtNum).join(", ")} → ${region.hi_nm.map(fmtNum).join(", ")} nm` : ""}
+        </div>
+      </Section>
+      <button className="link" onClick={() => select(["options"])}>
+        All FDTD options (spacing, grid, grading ratio, symmetry…)
+      </button>
+    </>
+  );
+}
+
 // --- solver options ----------------------------------------------------------------
 
-function OptionsEditor() {
+/**
+ * `options` of the problem at `base` ([] or, for inverse design, ["device"]): one form per method and backend of this
+ * kind, generated from each backend's options schema, over the raw dict. Inverse design passes options to the
+ * differentiable device solvers it runs, so those are the backends listed for it.
+ */
+function OptionsEditor({ base }: { base: Path }) {
   const spec = useSpec((s) => s.spec);
   const apply = useSpec((s) => s.apply);
   const backends = useConnection((s) => s.backends);
   const issues = useIssueMap();
   const kind = typeof spec.kind === "string" ? spec.kind : "scattering";
-  const opts = isObject(spec.options) ? spec.options : {};
-  const relevant = backends.filter((b) => !b.problem_kinds || b.problem_kinds.includes(kind));
+  const root = [...base, "options"];
+  const stored = getAt(spec, root);
+  const opts = isObject(stored ?? null) ? (stored as JsonObject) : {};
+  const relevant = kind === "optimization" ? backends.filter((b) => b.problem_kinds?.includes("device") && b.differentiable) : backends.filter((b) => !b.problem_kinds || b.problem_kinds.includes(kind));
   const methods = [...new Set(relevant.map((b) => b.method))];
   const known = new Set([...methods, ...relevant.map((b) => b.name)]);
   const setKey = (key: string, value: Json | undefined) => {
     if (value === undefined) {
-      if (key in opts) apply({ op: "remove", path: ["options", key] });
-    } else apply({ op: "replace", path: ["options", key] , value }, { coalesceKey: `options/${key}` });
+      if (key in opts) apply({ op: "remove", path: [...root, key] });
+    } else apply({ op: "replace", path: [...root, key], value }, { coalesceKey: `${root.join("/")}/${key}` });
   };
   return (
     <>
-      <Section title="Solver options">
+      <Section title={base.length ? "Solver options of the device" : "Solver options"}>
         <p className="muted small">
           <code>options[method]</code> applies to every backend of that method; <code>options[backend]</code> applies to one backend and wins. Forms come from each backend's
-          options model when the server publishes it.
+          options model.
+          {kind === "optimization" && !base.length ? " For inverse design they are merged over the device's options, key by key: set only what differs." : ""}
         </p>
       </Section>
       {methods.map((m) => {
@@ -444,11 +548,11 @@ function OptionsEditor() {
                       doc={new SchemaDoc(os)}
                       node={os}
                       value={value ?? {}}
-                      path={["options", key]}
+                      path={[...root, key]}
                       issues={issues}
                       overrides={OVERRIDES}
                       onChange={(path, v) => {
-                        const rel = path.slice(2);
+                        const rel = path.slice(root.length + 1);
                         const next = JSON.parse(JSON.stringify(value ?? {}));
                         if (rel.length === 0) return setKey(key, v);
                         let o = next;
@@ -469,7 +573,7 @@ function OptionsEditor() {
       })}
       <Section title="Raw options (all keys)">
         {Object.keys(opts).some((k) => !known.has(k)) && <div className="warn-box">Keys not matching any backend or method on this server: {Object.keys(opts).filter((k) => !known.has(k)).join(", ")}</div>}
-        <SpecForm path={["options"]} label="options" />
+        <SpecForm path={root} label="options" />
       </Section>
     </>
   );

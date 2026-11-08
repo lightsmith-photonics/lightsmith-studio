@@ -2,6 +2,7 @@
 // own `supports` reasons), device choice, Estimate, Solve, Compare, and the
 // job manager (live progress, cancel, history, re-run).
 
+import { SweepSetup } from "./Sweep";
 import { useEffect, useMemo, useState } from "react";
 import type { Estimate, SupportInfo } from "../api/types";
 import { useConnection } from "../state/connection";
@@ -45,7 +46,7 @@ export function runtimeOf(e: Estimate): { text: string; heuristic: boolean } {
   return { text: "—", heuristic: true };
 }
 
-function useSupport(): { list: SupportInfo[] | null; error: string | null } {
+export function useSupport(): { list: SupportInfo[] | null; error: string | null } {
   const spec = useSpec((s) => s.spec);
   const client = useConnection((s) => s.client);
   const backends = useConnection((s) => s.backends);
@@ -240,6 +241,7 @@ export function RunPanel() {
             ))}
           </div>
         )}
+        <SweepSetup disabled={issues.length > 0} />
         {estErr && <div className="field-error" data-testid="estimate-error">{estErr}</div>}
         {estimate && <EstimateCard e={estimate} />}
       </section>
@@ -348,12 +350,15 @@ export function JobList() {
               )}
               {r.hasResult && (
                 <>
-                  <label className="small">
-                    <input type="checkbox" checked={shown.includes(r.key)} onChange={(e) => j.toggleShown(r.key, e.target.checked)} /> overlay
-                  </label>
+                  {r.operation !== "sweep" && (
+                    <label className="small">
+                      <input type="checkbox" checked={shown.includes(r.key)} onChange={(e) => j.toggleShown(r.key, e.target.checked)} /> overlay
+                    </label>
+                  )}
                   <button
                     className="small"
                     onClick={() => {
+                      if (r.sweep) return setTab("sweep"); // sweeps have their own tab
                       j.setActive(r.key);
                       j.toggleShown(r.key, true);
                       setTab("results");

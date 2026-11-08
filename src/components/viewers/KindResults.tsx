@@ -3,9 +3,11 @@
 // gap shading) and optimization (history). Each takes the runs to overlay; runs[0] is active.
 
 import { useMemo, useRef, useState } from "react";
-import type { BandResult, ModeResult, OptimizationResult, SParameterResult, SpectrumResult } from "../../api/types";
+import { designSlice, type BandResult, type ModeResult, type OptimizationResult, type SParameterResult, type SpectrumResult } from "../../api/types";
 import { exportFile } from "../../lib/files";
 import { isObject, type JsonObject } from "../../schema/schema";
+import { loadSpec } from "../../state/actions";
+import { useUi } from "../../state/ui";
 import { profilePath } from "../kinds/geometry2d";
 import { ExportButtons, Plot, type PlotHandle } from "../Plot";
 import { fmtNum } from "../Properties";
@@ -50,8 +52,10 @@ export function SpectrumViewer({ runs }: { runs: Run<SpectrumResult>[] }) {
   const [ai, setAi] = useState(0);
   const [mapMode, setMapMode] = useState(false);
   const [orderQ, setOrderQ] = useState<"r" | "t">("t");
+  const [ampQ, setAmpQ] = useState<"r" | "t">("r");
   const plot = useRef<PlotHandle>(null);
   const oplot = useRef<PlotHandle>(null);
+  const aplot = useRef<PlotHandle>(null);
   const angle = active.angles_deg[Math.min(ai, active.angles_deg.length - 1)];
 
   const data = useMemo(() => {
@@ -77,6 +81,24 @@ export function SpectrumViewer({ runs }: { runs: Run<SpectrumResult>[] }) {
     const p = ps[0] ?? pols[0];
     return (active.orders ?? []).map((o, i) => ({ x: active.wavelengths_nm, y: o[orderQ]?.[p]?.[ai] ?? [], name: `(${o.order.join(",")})`, mode: "lines", line: { color: COLORS[i % COLORS.length] } }));
   }, [active, orderQ, ps, pols, ai]);
+
+  // the complex zeroth-order amplitudes the backend returns: phase at the chosen angle
+  const amps = ampQ === "r" ? active.r_amplitude : active.t_amplitude;
+  const ampData = useMemo(
+    () =>
+      ps.flatMap((p, pi) => {
+        const a = amps?.[p]?.[ai];
+        return a ? [{ x: active.wavelengths_nm, y: unwrapDeg(a.map(([re, im]) => (Math.atan2(im, re) * 180) / Math.PI)), name: `arg ${ampQ}_${p}`, mode: "lines", line: { color: COLORS[pi % COLORS.length], width: 2 } }] : [];
+      }),
+    [amps, ps, ai, active, ampQ],
+  );
+  const ampCsv = () => {
+    const rows: (string | number)[][] = [];
+    for (const q of ["r", "t"] as const)
+      for (const [p, table] of Object.entries((q === "r" ? active.r_amplitude : active.t_amplitude) ?? {}))
+        table.forEach((row, j) => row.forEach(([re, im], k) => rows.push([q, p, active.angles_deg[j], active.wavelengths_nm[k], re, im])));
+    void exportFile(csvRows(["amplitude", "polarization", "angle_deg", "wavelength_nm", "re", "im"], rows), "amplitudes.csv", "text/csv");
+  };
 
   const csv = () => {
     const rows: (string | number)[][] = [];
@@ -128,6 +150,21 @@ export function SpectrumViewer({ runs }: { runs: Run<SpectrumResult>[] }) {
             <ExportButtons plot={oplot} name="orders" />
           </Toolbar>
           <Plot ref={oplot} data={orderData} layout={{ xaxis: { title: { text: "wavelength (nm)" } }, yaxis: { title: { text: "efficiency" } } }} height={260} testId="orders-plot" />
+        </>
+      )}
+      {(active.r_amplitude || active.t_amplitude) && (
+        <>
+          <Toolbar>
+            <h4 className="grow">
+              Phase of the zeroth-order amplitude <span className="muted small">(θ = {angle}°{typeof active.provenance?.amplitude_convention === "string" ? `; ${active.provenance.amplitude_convention}` : ""})</span>
+            </h4>
+            <select value={ampQ} onChange={(e) => setAmpQ(e.target.value as "r" | "t")} data-testid="amplitude-which">
+              <option value="r">reflected</option>
+              <option value="t">transmitted</option>
+            </select>
+            <ExportButtons plot={aplot} name="amplitude-phase" extra={<button className="small" onClick={ampCsv}>CSV</button>} />
+          </Toolbar>
+          <Plot ref={aplot} data={ampData} layout={{ xaxis: { title: { text: "wavelength (nm)" } }, yaxis: { title: { text: "phase (°, unwrapped)" } } }} height={260} testId="amplitude-plot" />
         </>
       )}
     </div>
@@ -580,6 +617,19 @@ export function OptimizationViewer({ runs }: { runs: Run<OptimizationResult>[] }
           <span className="small">
             objective {fmtNum(r.objective_initial)} → {fmtNum(r.objective_final)} (binary design {fmtNum(r.objective_binary)}) · {r.structures?.length ?? 0} exported structures
           </span>
+          {r.final_device && (
+            <button
+              className="small"
+              onClick={() => {
+                loadSpec(r.final_device as JsonObject, { fileName: null });
+                useUi.getState().setCenterTab("scene");
+              }}
+              title="Load the input device plus the exported binary design as a device problem"
+              data-testid="open-final-device"
+            >
+              Open final device
+            </button>
+          )}
           <ExportButtons plot={plot} name="optimization" />
         </Toolbar>
         <Plot ref={plot} data={data} layout={{ xaxis: { title: { text: "iteration" } }, yaxis: { title: { text: "objective" } }, yaxis2: { title: { text: "binarization" }, overlaying: "y", side: "right", range: [0, 1] } }} height={300} testId="optimization-plot" />
@@ -590,12 +640,13 @@ export function OptimizationViewer({ runs }: { runs: Run<OptimizationResult>[] }
   );
 }
 
-/** Polygon outlines (nm) of structures' xy footprints: prism profiles, boxes and balls. */
-function structureOutlines(list: unknown): { pts: [number, number][]; name: string }[] {
+/** Polygon outlines (nm) of structures' xy footprints: prism profiles, boxes and balls (only prisms spanning `z`, if given). */
+function structureOutlines(list: unknown, z?: number): { pts: [number, number][]; name: string }[] {
   if (!Array.isArray(list)) return [];
   return list.flatMap((s) => {
     if (!isObject(s) || !isObject(s.geometry)) return [];
     const g = s.geometry as JsonObject;
+    if (z !== undefined && g.kind === "prism" && typeof g.z_min_nm === "number" && typeof g.z_max_nm === "number" && (z < g.z_min_nm - 1e-6 || z > g.z_max_nm + 1e-6)) return [];
     let profile: JsonObject | null = null;
     if (g.kind === "prism" && isObject(g.profile)) profile = g.profile as JsonObject;
     else if (g.kind === "box") {
@@ -619,9 +670,13 @@ function DesignView({ run }: { run: Run<OptimizationResult> }) {
   const [outlines, setOutlines] = useState(true);
   const plot = useRef<PlotHandle>(null);
   const d = designs[Math.min(di, designs.length - 1)];
+  // volumetric 3D regions: one xy slice at a time, at the z node chosen here
+  const zs = d && Array.isArray(d.z_nm) && Array.isArray(d.density[0]?.[0]) ? d.z_nm : null;
+  const [zSel, setZ] = useState<number | null>(null);
+  const zi = zs ? Math.min(zSel ?? Math.floor(zs.length / 2), zs.length - 1) : 0;
   const data = useMemo(() => {
     if (!d) return [];
-    const m = d[which];
+    const m = designSlice(d[which], zi);
     const z = d.y_nm.map((_, j) => d.x_nm.map((_, i) => m[i]?.[j] ?? null));
     const traces: object[] = [
       { type: "heatmap", x: d.x_nm, y: d.y_nm, z, zmin: 0, zmax: 1, colorscale: "Greys", colorbar: { title: { text: which === "density" ? "density" : "raw ρ" } }, hovertemplate: "x=%{x:.0f} nm<br>y=%{y:.0f} nm<br>%{z:.3f}<extra></extra>" },
@@ -631,15 +686,16 @@ function DesignView({ run }: { run: Run<OptimizationResult> }) {
       const device = isObject(run.spec.device) ? (run.spec.device as JsonObject) : null;
       for (const o of structureOutlines(device?.structures))
         traces.push({ x: o.pts.map((p) => p[0]), y: o.pts.map((p) => p[1]), mode: "lines", line: { color: "#8b93a1", width: 1, dash: "dot" }, hoverinfo: "skip", showlegend: false });
-      for (const o of structureOutlines(r.structures).filter((o) => !o.name.endsWith(":region")))
+      for (const o of structureOutlines(r.structures, zs ? zs[zi] : undefined).filter((o) => !o.name.endsWith(":region")))
         traces.push({ x: o.pts.map((p) => p[0]), y: o.pts.map((p) => p[1]), mode: "lines", line: { color: "#4cd7e4", width: 1.5 }, hoverinfo: "skip", showlegend: false });
     }
     return traces;
-  }, [d, which, outlines, r.structures, run.spec]);
+  }, [d, which, outlines, r.structures, run.spec, zi]);
   if (!d) return null;
   const pad = 0.15 * Math.max(d.x_nm[d.x_nm.length - 1] - d.x_nm[0], d.y_nm[d.y_nm.length - 1] - d.y_nm[0]);
-  const binary = d.density.flat();
+  const binary = (d.density as unknown[]).flat(2) as number[];
   const solid = binary.filter((v) => v > 0.5).length / Math.max(1, binary.length);
+  const slice = (m: number[][] | number[][][]) => designSlice(m, zi);
   return (
     <div className="panel" data-testid="design-view">
       <Toolbar>
@@ -654,6 +710,18 @@ function DesignView({ run }: { run: Run<OptimizationResult> }) {
               </option>
             ))}
           </select>
+        )}
+        {zs && (
+          <label className="small">
+            z slice{" "}
+            <select value={zi} onChange={(e) => setZ(Number(e.target.value))} data-testid="design-z">
+              {zs.map((z, i) => (
+                <option key={i} value={i}>
+                  {fmtNum(z)} nm
+                </option>
+              ))}
+            </select>
+          </label>
         )}
         <div className="seg">
           <button className={which === "density" ? "active" : ""} onClick={() => setWhich("density")}>
@@ -673,7 +741,13 @@ function DesignView({ run }: { run: Run<OptimizationResult> }) {
             <button
               className="small"
               onClick={() =>
-                void exportFile(csvRows(["x_nm", "y_nm", "density", "raw"], d.x_nm.flatMap((x, i) => d.y_nm.map((y, j) => [x, y, d.density[i][j], d.raw[i][j]]))), `design-${d.name}.csv`, "text/csv")
+                void exportFile(
+                  zs
+                    ? csvRows(["x_nm", "y_nm", "z_nm", "density", "raw"], zs.flatMap((z, k) => { const [dn, rw] = [designSlice(d.density, k), designSlice(d.raw, k)]; return d.x_nm.flatMap((x, i) => d.y_nm.map((y, j) => [x, y, z, dn[i][j], rw[i][j]])); }))
+                    : csvRows(["x_nm", "y_nm", "density", "raw"], d.x_nm.flatMap((x, i) => { const [dn, rw] = [slice(d.density), slice(d.raw)]; return d.y_nm.map((y, j) => [x, y, dn[i][j], rw[i][j]]); })),
+                  `design-${d.name}.csv`,
+                  "text/csv",
+                )
               }
             >
               CSV

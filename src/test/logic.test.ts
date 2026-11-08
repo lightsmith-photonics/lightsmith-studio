@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import fixture from "../generated/fixtures/scattering.json";
 import schemaJson from "../generated/schema.json";
-import { HttpComputeClient, MockComputeClient } from "../api/compute";
+import { compareMock, HttpComputeClient, MockComputeClient } from "../api/compute";
 import { resolveBackend, solveMock, supportsAll } from "../api/mock/solver";
 import type { JobEvent, ScatteringResult } from "../api/types";
-import { cliCode, pythonCode, toPython } from "../lib/codegen";
+import { cliCode, curlCode, mcpCall, pythonCode, toPython } from "../lib/codegen";
+import { KIND_TEMPLATES } from "../state/kinds";
 import { base64UrlEncode, parseDeepLink } from "../lib/deeplink";
 import { spectraCsv } from "../lib/csv";
 import { epsAt, findLibrary, materialRange, nkAt, parseNkCsv } from "../physics/materials";
@@ -159,6 +160,12 @@ describe("mock compute client", () => {
     expect(events.some((e) => e.type === "progress")).toBe(true);
     expect((events.at(-1)!.result as ScatteringResult).backend).toMatch(/mie/);
   });
+  it("compares mock backends without inventing differences: they share one in-browser physics", () => {
+    const cmp = compareMock(TEMPLATES[0].spec, ["lightsmith-mie", "lightsmith-dda", "lightsmith-bem"], "cpu", null);
+    expect(cmp.reference).toBe("lightsmith-mie");
+    for (const d of Object.values(cmp.relative_difference)) for (const q of Object.values(d)) expect(q.max).toBe(0);
+    for (const r of Object.values(cmp.results)) expect((r as ScatteringResult).warnings[0]).toMatch(/^mock server/);
+  });
 });
 
 describe("HTTP compute client", () => {
@@ -198,6 +205,27 @@ describe("code generation", () => {
     expect(py).toContain('ls.solve(spec, method="dda", device="gpu")');
     const cmp = pythonCode(TEMPLATES[0].spec, { operation: "compare", method: "auto", device: "cpu", methods: ["mie", "dda"] });
     expect(cmp).toContain('ls.compare(spec, methods=["mie", "dda"], device="cpu")');
+  });
+  it("emits Python that works for every problem kind (summary() is for cross sections only)", () => {
+    for (const [kind, spec] of Object.entries(KIND_TEMPLATES)) {
+      const py = pythonCode(spec, { operation: "solve", method: "auto", device: "cpu" });
+      if (kind === "scattering") expect(py, kind).toContain("print(result.summary())");
+      else {
+        expect(py, kind).not.toContain("summary()");
+        expect(py, kind).toContain("f.write(result.model_dump_json())");
+      }
+      const cmp = pythonCode(spec, { operation: "compare", method: "auto", device: "cpu" });
+      expect(cmp, kind).not.toContain('diff["c_ext_nm2"]');
+      expect(cmp, kind).toContain("print(name, diff)");
+    }
+  });
+  it("names the MCP tools' argument `problem` and the Cloud API key LIGHTSMITH_API_KEY", () => {
+    const call = JSON.parse(mcpCall(KIND_TEMPLATES.device, { operation: "solve", method: "eme", device: "cpu" }));
+    expect(call).toEqual({ tool: "solve", arguments: { problem: KIND_TEMPLATES.device, device: "cpu", method: "eme" } });
+    expect(JSON.parse(mcpCall(KIND_TEMPLATES.mode, { operation: "compare", method: "auto", device: "auto", methods: null })).arguments).toHaveProperty("problem");
+    const curl = curlCode(TEMPLATES[0].spec, { operation: "solve", method: "auto", device: "auto" }, "https://compute.example/", true);
+    expect(curl).toContain("Bearer $LIGHTSMITH_API_KEY");
+    expect(curl).toContain("https://compute.example/v1/jobs");
   });
   it("emits CLI commands for bash and PowerShell", () => {
     const sh = cliCode(TEMPLATES[0].spec, { operation: "compare", method: "auto", device: "cpu", methods: ["mie", "dda"] });

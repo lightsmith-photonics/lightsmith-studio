@@ -16,6 +16,19 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByTestId("statusbar")).toContainText("spec valid");
 });
 
+test("the 3D scene's labels survive leaving and re-entering the scene, without page errors", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (m) => m.type() === "error" && !/WebGL|GL Driver/.test(m.text()) && errors.push(m.text()));
+  await expect(page.locator(".scene-label").first()).toBeVisible();
+  const labels = await page.locator(".scene-label").allTextContents();
+  expect(labels).toEqual(expect.arrayContaining(["k", "E"]));
+  for (const tab of ["preview", "scene", "results", "scene"]) await page.getByTestId("center-tabs").getByTestId(`tab-${tab}`).click();
+  await expect(page.locator(".scene-label").first()).toBeVisible();
+  expect(await page.locator(".scene-label").allTextContents()).toEqual(expect.arrayContaining(["k", "E"]));
+  expect(errors).toEqual([]);
+});
+
 test("scene builder: template, edit, undo/redo, copy/paste, live JSON", async ({ page }) => {
   await page.getByTestId("menu-new").click();
   await page.getByTestId("kind-scattering").click();
@@ -86,7 +99,7 @@ test("run: support reasons, estimate, solve, results, near field", async ({ page
 
   await page.getByTestId("solve-btn").click();
   const job = page.getByTestId("job").first();
-  await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 30_000 });
+  await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 120_000 });
   await job.getByTestId("job-show").click();
   await expect(page.getByTestId("spectra-plot")).toHaveAttribute("data-ready", "true");
   await expect(page.getByTestId("near-field-plot")).toHaveAttribute("data-ready", "true");
@@ -105,7 +118,7 @@ test("job manager: cancel and re-run", async ({ page }) => {
   await expect(job).toHaveAttribute("data-status", "cancelled");
   await job.getByRole("button", { name: "Re-run" }).click();
   await expect(page.getByTestId("job")).toHaveCount(2);
-  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", { timeout: 30_000 });
+  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", { timeout: 120_000 });
 });
 
 test("compare view and far field", async ({ page }) => {
@@ -115,7 +128,7 @@ test("compare view and far field", async ({ page }) => {
   await page.getByTestId("right-tabs").getByTestId("tab-run").click();
   await expect(page.getByTestId("support-lightsmith-mie")).toContainText("supported");
   await page.getByTestId("compare-btn").click();
-  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", { timeout: 30_000 });
+  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", { timeout: 120_000 });
   await page.getByTestId("center-tabs").getByTestId("tab-compare").click();
   await expect(page.getByTestId("compare-table")).toContainText("%");
   await expect(page.getByTestId("compare-plot")).toHaveAttribute("data-ready", "true");

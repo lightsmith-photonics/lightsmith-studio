@@ -50,6 +50,15 @@ async function solve(page: Page) {
 /** The latest result, as Studio stored it. */
 const lastResult = (page: Page): Promise<any> => page.evaluate(() => window.studio.result(window.studio.jobs()[0].key));
 
+// A cold server's estimate worker imports the library on its first request, and on a busy machine that can outlast
+// the server's 60 s limit on one estimate ("the problem is too large"). Warm it up before the tests.
+test.beforeAll(async ({ request }) => {
+  test.setTimeout(900_000);
+  await expect
+    .poll(async () => (await request.post(`${url}/v1/estimate`, { data: { simulation: small, method: "lightsmith-mie", device: "cpu" }, timeout: 180_000 })).status(), { timeout: 800_000, intervals: [5_000] })
+    .toBe(200);
+});
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(
     ([u, s]) => {

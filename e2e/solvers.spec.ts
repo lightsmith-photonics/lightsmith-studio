@@ -61,6 +61,19 @@ for (const c of CASES) {
   });
 }
 
+test("preview: with method auto it shows the backend auto would run", async ({ page }) => {
+  await start(page, "layer_stack");
+  await page.getByTestId("center-tabs").getByTestId("tab-preview").click();
+  await expect(page.getByTestId("preview-backend")).toHaveValue("auto");
+  await expect(page.getByTestId("preview-backend")).toContainText("auto (lightsmith-tmm)");
+  await expect(page.getByTestId("preview-summary")).toContainText("discretisation");
+  // the Run panel's method wins over auto
+  await page.getByTestId("right-tabs").getByTestId("tab-run").click();
+  await page.getByTestId("method-select").selectOption("lightsmith-rcwa");
+  await expect(page.getByTestId("preview-backend")).toHaveValue("lightsmith-rcwa");
+  await expect(page.getByTestId("preview-summary")).toContainText("harmonics");
+});
+
 test("preview: an edited spec keeps the last layout, marked stale", async ({ page }) => {
   await start(page, "scattering");
   await preview(page, "lightsmith-dda");
@@ -81,8 +94,6 @@ test("compare: several backends, overlay and differences, any problem kind", asy
   await expect(page.getByTestId("compare-table")).toContainText("%");
   await page.getByTestId("compare-quantity").selectOption("c_sca_nm2");
   await page.getByTestId("compare-mode").selectOption("abs");
-  await page.waitForTimeout(500);
-  await shot(page, "compare-backends");
 
   // devices: S-parameters from several backends (the mock answers each with the library's example)
   await start(page, "device");
@@ -117,8 +128,6 @@ test("sweep: a geometry field over a range, reduced to a peak position", async (
   const first = Number(await rows.nth(0).locator("td").nth(2).textContent());
   const last = Number(await rows.nth(4).locator("td").nth(2).textContent());
   expect(last).toBeGreaterThan(first);
-  await page.waitForTimeout(500);
-  await shot(page, "sweep");
   // the sweep's specs are complete library specs
   expect((await spec(page)).particles[0].shape.radius_nm).toBe(40);
 });

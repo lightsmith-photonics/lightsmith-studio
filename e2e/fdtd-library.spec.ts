@@ -1,16 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Previews against the library itself: the dev server's library bridge runs scripts/solver_layout.py
-// with ../lightsmith (vite.config.ts). Needs uv and the library checkout:
-//
-//   STUDIO_LIBRARY_BRIDGE=1 npx playwright test fdtd-library
-//
-// (stop any dev server on port 5174 first, so Playwright starts one with the bridge on).
+// with ../lightsmith (vite.config.ts). Needs uv and the library checkout; playwright.config.ts starts a dev server
+// with the bridge on for this file (`npx playwright test --project=library`).
 
 import { expect, test, type Page } from "@playwright/test";
 
-test.skip(process.env.STUDIO_LIBRARY_BRIDGE !== "1", "set STUDIO_LIBRARY_BRIDGE=1 to run against ../lightsmith");
-
 const spec = (page: Page): Promise<any> => page.evaluate(() => window.studio.getSpec());
+
+// each layout starts a Python process and imports the library: allow for a busy machine
+test.setTimeout(300_000);
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -26,7 +24,7 @@ test("an edited spec gets a fresh layout from the library", async ({ page }) => 
 
   // a finer override: the library builds a new graded grid
   await page.evaluate(() => window.studio.apply({ op: "replace", path: ["options", "fdtd", "mesh_override", 0, "spacing_nm"], value: 1 }));
-  await expect(page.getByTestId("fdtd-source")).toContainText("library bridge", { timeout: 30_000 });
+  await expect(page.getByTestId("fdtd-source")).toContainText("library bridge", { timeout: 180_000 });
   await expect(page.getByTestId("fdtd-source")).not.toContainText("before your last edit");
   const after = await page.getByTestId("fdtd-grid").textContent();
   expect(after).not.toEqual(before);
@@ -41,7 +39,7 @@ test("beam + mesh override + symmetry: drawn, with the library's refusal", async
     window.studio.apply({ op: "replace", path: ["options", "fdtd"], value: { spacing_nm: 6, symmetry: "auto", mesh_override: [{ center_nm: [200, 0, 0], size_nm: [140, 140, 140], spacing_nm: 3 }] } }),
   );
   expect((await spec(page)).illumination.kind).toBe("gaussian_beam");
-  await expect(page.getByTestId("fdtd-source")).toContainText("library bridge", { timeout: 30_000 });
+  await expect(page.getByTestId("fdtd-source")).toContainText("library bridge", { timeout: 180_000 });
   await expect(page.getByTestId("fdtd-grid-kind")).toHaveText("graded");
   await expect(page.getByTestId("fdtd-note")).toContainText("plane-wave illumination only");
   await expect(page.getByTestId("fdtd-symmetry")).toContainText("Gaussian beams are not used with mirror symmetry");
@@ -59,7 +57,7 @@ test("preview of any solver: an edited spec gets a fresh DDA lattice from the li
   await expect(page.getByTestId("preview-source")).toContainText("snapshot");
   const before = await page.getByTestId("preview-summary").textContent();
   await page.evaluate(() => window.studio.apply({ op: "replace", path: ["options"], value: { dda: { dipoles_per_diameter: 24 } } }));
-  await expect(page.getByTestId("preview-source")).toContainText("library bridge", { timeout: 30_000 });
+  await expect(page.getByTestId("preview-source")).toContainText("library bridge", { timeout: 180_000 });
   await expect(page.getByTestId("preview-summary")).toContainText("24");
   expect(await page.getByTestId("preview-summary").textContent()).not.toEqual(before);
   await expect(page.getByTestId("preview-plot")).toHaveAttribute("data-ready", "true");

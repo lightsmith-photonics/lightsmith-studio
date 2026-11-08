@@ -13,6 +13,9 @@ import { expect, test, type Page } from "@playwright/test";
 
 const url = process.env.STUDIO_COMPUTE_URL ?? "http://localhost:8231";
 
+// real solves, one at a time on the server, beside whatever else the machine and its GPU are doing
+test.describe.configure({ timeout: 900_000 });
+
 const small = {
   kind: "scattering",
   particles: [{ shape: { kind: "sphere", radius_nm: 40 }, material: { kind: "library", name: "Au", dataset: "Johnson-Christy" }, position_nm: [0, 0, 0] }],
@@ -59,11 +62,11 @@ test.beforeEach(async ({ page }) => {
   );
   await page.goto("/");
   await expect(page.getByTestId("server-button")).toContainText("Local");
-  await expect(page.getByTestId("statusbar")).toContainText("live from server");
+  // a cold server imports every backend on its first requests
+  await expect(page.getByTestId("statusbar")).toContainText("live from server", { timeout: 300_000 });
 });
 
 test("live: supports reasons, estimate, solve with near field, compare", async ({ page }) => {
-  test.setTimeout(900_000);
   await runTab(page);
   await expect(page.locator('[data-testid^="support-"][data-testid$="-mie"]')).toContainText("supported", { timeout: 120_000 }); // a cold server imports every backend first
   await expect(page.getByTestId("support-miepython")).toContainText("near_field", { timeout: 30_000 });
@@ -118,7 +121,6 @@ const KINDS: { kind: string; scene: string; viewer: string; plot: string; previe
 
 for (const k of KINDS) {
   test(`live: ${k.kind}: scene, server preview, solve, viewer`, async ({ page }) => {
-    test.setTimeout(600_000);
     await newProject(page, k.kind);
     expect((await spec(page)).kind).toBe(k.kind);
     await expect(page.getByTestId("statusbar")).toContainText("spec valid");
@@ -142,7 +144,6 @@ for (const k of KINDS) {
 }
 
 test("live: a running job can be cancelled", async ({ page }) => {
-  test.setTimeout(300_000);
   await newProject(page, "emission");
   await runTab(page);
   await page.getByTestId("solve-btn").click();
@@ -155,7 +156,6 @@ test("live: a running job can be cancelled", async ({ page }) => {
 });
 
 test("live: an edited spec gets its own solution", async ({ page }) => {
-  test.setTimeout(300_000);
   await newProject(page, "layer_stack");
   await solve(page);
   const first = await lastResult(page);
@@ -170,7 +170,6 @@ test("live: an edited spec gets its own solution", async ({ page }) => {
 });
 
 test("live: Preview from POST /v1/discretization, for several solvers", async ({ page }) => {
-  test.setTimeout(300_000);
   await page.getByTestId("center-tabs").getByTestId("tab-preview").click();
   for (const [backend, text] of [
     ["lightsmith-dda", "dipoles"],
@@ -189,7 +188,6 @@ test("live: Preview from POST /v1/discretization, for several solvers", async ({
 });
 
 test("live: an edited FDTD set-up: the 3D view's layout comes from the server", async ({ page }) => {
-  test.setTimeout(300_000);
   await newProject(page, "scattering", "fdtd-override");
   await expect(page.getByTestId("fdtd-source")).toContainText("server", { timeout: 120_000 });
   const before = await page.getByTestId("fdtd-grid").textContent();
@@ -200,7 +198,6 @@ test("live: an edited FDTD set-up: the 3D view's layout comes from the server", 
 });
 
 test("live: a parameter sweep runs as one server job, and re-runs", async ({ page }) => {
-  test.setTimeout(600_000);
   await runTab(page);
   await page.getByTestId("method-select").selectOption("lightsmith-mie");
   await page.getByTestId("sweep-setup").locator("summary").click();
@@ -225,7 +222,6 @@ test("live: a parameter sweep runs as one server job, and re-runs", async ({ pag
 });
 
 test("live: sweep of a non-scattering problem: a layer's thickness", async ({ page }) => {
-  test.setTimeout(300_000);
   await newProject(page, "layer_stack");
   await runTab(page);
   await page.getByTestId("method-select").selectOption("lightsmith-tmm");
@@ -242,7 +238,6 @@ test("live: sweep of a non-scattering problem: a layer's thickness", async ({ pa
 });
 
 test("live: compare devices across EME and BPM, with their real differences", async ({ page }) => {
-  test.setTimeout(600_000);
   await newProject(page, "device");
   await runTab(page);
   await expect(page.getByTestId("support-lightsmith-eme")).toContainText("supported", { timeout: 120_000 });
@@ -259,7 +254,6 @@ test("live: compare devices across EME and BPM, with their real differences", as
 });
 
 test("live: emission without a radiation pattern: Mie and FDTD, compared", async ({ page }) => {
-  test.setTimeout(900_000);
   await newProject(page, "emission");
   await page.evaluate(() => window.studio.apply({ op: "replace", path: ["radiation_pattern"], value: null }));
   await runTab(page);
@@ -277,7 +271,6 @@ test("live: emission without a radiation pattern: Mie and FDTD, compared", async
 });
 
 test("live: a 3D volumetric inverse design: a z slice of the library's density", async ({ page }) => {
-  test.setTimeout(600_000);
   // tiny: 8k cells at 100 nm, two iterations, on the CPU (as the library's own 3D gradient test)
   const SIO2 = { kind: "constant_index", n_real: 1.444, n_imag: 0 };
   const SI = { kind: "constant_index", n_real: 3.48, n_imag: 0 };
@@ -325,7 +318,6 @@ function runPython(code: string, cwd: string) {
 }
 
 test("live: Copy as Python runs for non-scattering problems", async ({ page }) => {
-  test.setTimeout(600_000);
   const dir = mkdtempSync(join(tmpdir(), "studio-python-"));
   try {
     await newProject(page, "device");

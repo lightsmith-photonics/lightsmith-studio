@@ -184,6 +184,9 @@ export interface SpectrumResult extends ResultBase {
   t: PerPol;
   a: PerPol;
   orders?: { order: [number, number]; r: PerPol; t: PerPol }[] | null;
+  /** Complex zeroth-order amplitudes (re, im) per polarization, [angle][wavelength], when the backend gives them. */
+  r_amplitude?: Record<string, [number, number][][]> | null;
+  t_amplitude?: Record<string, [number, number][][]> | null;
 }
 
 export interface ModeData {
@@ -227,13 +230,33 @@ export interface OptimizationResult extends ResultBase {
   objective_initial: number;
   objective_final: number;
   objective_binary: number;
-  /** Per design region: projected density at the final beta and the raw variables, both [x][y]. */
-  designs?: { name: string; x_nm: number[]; y_nm: number[]; density: number[][]; raw: number[][] }[];
+  /**
+   * Per design region: projected density at the final beta and the raw variables, [x][y] ("2d" and 3D "extruded"
+   * regions), or [x][y][z] on the nodes z_nm ("volumetric" 3D regions).
+   */
+  designs?: DesignOutput[];
   /** The exported binary design as Structures (prism polygons). */
   structures?: { name?: string | null; geometry: Record<string, unknown>; material: unknown }[];
   /** The input device plus the exported structures. */
   final_device?: Record<string, unknown>;
   sparameters?: SParameterResult | null;
+}
+
+/** One design region of an optimization result (lightsmith.inverse.topopt.DesignOutput). */
+export interface DesignOutput {
+  name: string;
+  x_nm: number[];
+  y_nm: number[];
+  /** 3D volumetric regions: the z nodes. */
+  z_nm?: number[] | null;
+  parametrization?: "2d" | "extruded" | "volumetric" | string;
+  density: number[][] | number[][][];
+  raw: number[][] | number[][][];
+}
+
+/** The [x][y] map of a design at z node `zi` (volumetric regions), or the map itself (2D and extruded regions). */
+export function designSlice(m: number[][] | number[][][], zi: number): number[][] {
+  return (m as (number | number[])[][]).map((col) => col.map((v) => (Array.isArray(v) ? (v[Math.min(Math.max(0, zi), v.length - 1)] ?? NaN) : v)));
 }
 
 export interface RadiationPatternData {

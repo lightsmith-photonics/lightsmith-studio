@@ -350,9 +350,11 @@ export function JobList() {
               )}
               {r.hasResult && (
                 <>
-                  <label className="small">
-                    <input type="checkbox" checked={shown.includes(r.key)} onChange={(e) => j.toggleShown(r.key, e.target.checked)} /> overlay
-                  </label>
+                  {r.operation !== "sweep" && (
+                    <label className="small">
+                      <input type="checkbox" checked={shown.includes(r.key)} onChange={(e) => j.toggleShown(r.key, e.target.checked)} /> overlay
+                    </label>
+                  )}
                   <button
                     className="small"
                     onClick={() => {

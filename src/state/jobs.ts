@@ -193,7 +193,10 @@ export const useJobs = create<JobsState>((set, get) => {
     async rerun(key) {
       const rec = get().jobs.find((j) => j.key === key);
       if (!rec) throw new Error("unknown job");
-      return get().submit(rec.operation, rec.spec, { method: rec.method, methods: rec.methods, device: rec.device, label: rec.label });
+      // A server sweep job is re-run as a new sweep with the same field and values; one value of a per-value sweep
+      // (servers without sweep jobs) stays in its sweep.
+      const sweep = rec.sweep && (rec.operation === "sweep" ? { ...rec.sweep, id: `sweep-${Date.now().toString(36)}` } : rec.sweep);
+      return get().submit(rec.operation, rec.spec, { method: rec.method, methods: rec.methods, device: rec.device, label: rec.label, ...(sweep ? { sweep } : {}) });
     },
 
     remove(key) {

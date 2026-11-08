@@ -1,6 +1,7 @@
-// Parameter sweeps: one numeric field of the spec (geometry, materials, wavelengths…) or one numeric backend
-// option, over a range. The library has no sweep call, so a sweep is N ordinary solve jobs, each a complete spec
-// the library validates and solves; Studio only groups them (JobRecord.sweep) and reduces their curves.
+// Parameter sweeps: one numeric field of the spec (geometry, materials, wavelengths...) or one numeric backend
+// option, over a range. Every swept spec is a complete spec the library validates and solves. On a compute server
+// with sweep jobs the sweep is one job (`kind: "sweep"`); on older servers, one solve job per value. Studio groups
+// the runs (JobRecord.sweep) and reduces their curves.
 
 import type { BackendInfo } from "../api/types";
 import { isObject, SchemaDoc, type Json, type JsonObject, type JSONSchema, type Path } from "../schema/schema";
@@ -103,7 +104,7 @@ export async function runSweep(req: SweepRequest): Promise<{ id: string; jobs: J
     return { id, jobs: [job], skipped, serverSweep: true };
   } catch (e) {
     // servers without sweep jobs reject the kind (422 naming `kind`, or NotImplemented); anything else is real
-    const old = e instanceof ApiError && (e.status === 404 || e.status === 405 || (e.status === 422 && /(^|\W)kind(\W|$)|NotImplemented/i.test(`${e.error} ${e.message}`)));
+    const old = e instanceof ApiError && (e.status === 404 || e.status === 405 || (e.status === 422 && !/^sweep value /.test(e.message) && /(^|\W)kind(\W|$)|NotImplemented/i.test(`${e.error} ${e.message}`)));
     if (!old) throw e;
   }
   const jobs: JobRecord[] = [];

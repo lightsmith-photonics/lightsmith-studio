@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import schemaJson from "../generated/schema.json";
 import { MockComputeClient } from "../api/compute";
 import { CANNED_WARNING } from "../api/mock/solver";
-import { resultKind, type BandResult, type JobEvent } from "../api/types";
+import { designSlice, resultKind, type BandResult, type JobEvent, type OptimizationResult } from "../api/types";
 import { bandGaps, svgPathToPoints } from "../components/viewers/KindResults";
 import { cellPolygon, footprint, moveProfile, profileBounds } from "../components/kinds/geometry2d";
 import { buildConfig } from "../config/runtime";
@@ -40,6 +40,18 @@ describe("problem kinds", () => {
     expect(tm!.ratio).toBeGreaterThan(0.28);
     expect(tm!.ratio).toBeLessThan(0.36);
     expect(bandGaps({ te: [[0.1, 0.2], [0.3, 0.4]] })).toEqual([]);
+  });
+
+  it("slices inverse designs: [x][y] maps as they are, volumetric [x][y][z] at one z node", () => {
+    const flat = (fixture("optimization").result as unknown as OptimizationResult).designs![0];
+    expect(designSlice(flat.density, 0)).toEqual(flat.density);
+    const vol = [
+      [[0.1, 0.9], [0.2, 0.8]],
+      [[0.3, 0.7], [0.4, 0.6]],
+    ];
+    expect(designSlice(vol, 0)).toEqual([[0.1, 0.2], [0.3, 0.4]]);
+    expect(designSlice(vol, 1)).toEqual([[0.9, 0.8], [0.7, 0.6]]);
+    expect(designSlice(vol, 5)).toEqual(designSlice(vol, 1));
   });
 
   it("answers non-scattering jobs with the labelled example result", async () => {

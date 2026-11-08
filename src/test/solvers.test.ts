@@ -12,6 +12,7 @@ import type { JsonObject } from "../schema/schema";
 import { KIND_TEMPLATES } from "../state/kinds";
 import { linspace, runSweep, sweepParams, withValue } from "../state/sweep";
 import { useConnection } from "../state/connection";
+import { useJobs } from "../state/jobs";
 import { DEFAULT_SPEC } from "../state/templates";
 
 const fixtures = import.meta.glob("../generated/fixtures/*.json", { eager: true, import: "default" }) as Record<string, { spec: JsonObject; result: JsonObject | null }>;
@@ -171,6 +172,47 @@ describe("sweeps through the server", () => {
       expect(out.skipped).toEqual([-5]); // the schema rejects a negative radius before anything is sent
       expect(submitted).toEqual(["solve", "solve"]);
       expect(out.jobs.map((j) => j.sweep?.value)).toEqual([30, 40]);
+    } finally {
+      useConnection.setState({ client: prev });
+    }
+  });
+
+  it("does not fall back to one job per value when the server rejects a swept value", async () => {
+    const submitted: string[] = [];
+    const fake = {
+      kind: "http" as const,
+      baseUrl: "http://new.example",
+      async submit(r: { operation: string }) {
+        submitted.push(r.operation);
+        throw new ApiError("ValidationError", "sweep value 30: particles.0.shape.kind: unknown kind", 422);
+      },
+      subscribe: () => () => {},
+    };
+    const prev = useConnection.getState().client;
+    useConnection.setState({ client: fake as never });
+    try {
+      const param = sweepParams(DEFAULT_SPEC, BACKENDS, "mie").find((p) => p.label === "particles.0.shape.radius_nm")!;
+      await expect(runSweep({ spec: DEFAULT_SPEC, param, values: [30, 40], method: "mie" })).rejects.toThrow(/sweep value 30/);
+      expect(submitted).toEqual(["sweep"]);
+    } finally {
+      useConnection.setState({ client: prev });
+    }
+  });
+
+  it("re-runs a server sweep job as a new sweep with the same field and values", async () => {
+    const prev = useConnection.getState().client;
+    const mock = new MockComputeClient({ latencyMs: 0, stepMs: 0 });
+    useConnection.setState({ client: mock });
+    try {
+      const param = sweepParams(DEFAULT_SPEC, BACKENDS, "lightsmith-mie").find((p) => p.label === "particles.0.shape.radius_nm")!;
+      const out = await runSweep({ spec: DEFAULT_SPEC, param, values: [30, 40], method: "lightsmith-mie" });
+      expect(out.serverSweep).toBe(true);
+      const again = await useJobs.getState().rerun(out.jobs[0].key);
+      expect(again.operation).toBe("sweep");
+      expect(again.sweep).toMatchObject({ param: "particles.0.shape.radius_nm", values: [30, 40] });
+      expect(again.sweep!.id).not.toBe(out.jobs[0].sweep!.id);
+      const done = await new Promise<JsonObject>((resolve) => mock.subscribe(again.id, (e) => e.type === "result" && resolve(e.result as JsonObject)));
+      expect((done as unknown as SweepResult).values).toEqual([30, 40]);
     } finally {
       useConnection.setState({ client: prev });
     }

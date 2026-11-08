@@ -13,8 +13,11 @@ import { expect, test, type Page } from "@playwright/test";
 
 const url = process.env.STUDIO_COMPUTE_URL ?? "http://localhost:8231";
 
-// real solves, one at a time on the server, beside whatever else the machine and its GPU are doing
-test.describe.configure({ timeout: 900_000 });
+// Real solves, one at a time on the server, beside whatever else the machine and its GPU are doing: each job starts
+// a process that imports the library and initialises CUDA, which takes minutes when another process fills the GPU.
+// (CUDA_VISIBLE_DEVICES= npm run test:e2e runs the live project on the CPU.)
+test.describe.configure({ timeout: 1_800_000 });
+const JOB = { timeout: 1_200_000 };
 
 const small = {
   kind: "scattering",
@@ -43,7 +46,7 @@ async function solve(page: Page) {
   await page.getByTestId("solve-btn").click();
   await expect(page.getByTestId("job")).toHaveCount(before + 1);
   const job = page.getByTestId("job").first();
-  await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 480_000 });
+  await expect(job).toHaveAttribute("data-status", "succeeded", JOB);
   await job.getByTestId("job-show").click();
 }
 
@@ -90,7 +93,7 @@ test("live: supports reasons, estimate, solve with near field, compare", async (
   await page.getByTestId("method-select").selectOption("auto");
   await page.getByTestId("solve-btn").click();
   const job = page.getByTestId("job").first();
-  await expect(job).toHaveAttribute("data-status", "succeeded", { timeout: 300_000 });
+  await expect(job).toHaveAttribute("data-status", "succeeded", JOB);
   await job.getByTestId("job-show").click();
   await expect(page.getByTestId("spectra-plot")).toHaveAttribute("data-ready", "true");
   await expect(page.getByTestId("near-field-plot")).toHaveAttribute("data-ready", "true");
@@ -106,7 +109,7 @@ test("live: supports reasons, estimate, solve with near field, compare", async (
   if (await fdtd.count()) await fdtd.uncheck();
   await page.getByTestId("compare-btn").click();
   await expect(page.getByTestId("job")).toHaveCount(2);
-  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", { timeout: 300_000 });
+  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", JOB);
   await page.getByTestId("center-tabs").getByTestId("tab-compare").click();
   await expect(page.getByTestId("compare-table")).toContainText("%");
   await expect(page.getByTestId("compare-overlay-plot")).toHaveAttribute("data-ready", "true");
@@ -219,7 +222,7 @@ test("live: a parameter sweep runs as one server job, and re-runs", async ({ pag
   await page.getByTestId("sweep-num").fill("3");
   await page.getByTestId("sweep-run").click();
   await expect(page.getByTestId("sweep-view")).toContainText("one server job");
-  await expect(page.getByTestId("sweep-view")).toContainText("3/3 done", { timeout: 300_000 });
+  await expect(page.getByTestId("sweep-view")).toContainText("3/3 done", JOB);
   await expect(page.getByTestId("sweep-table").locator("tbody tr")).toHaveCount(3);
   await expect(page.getByTestId("job")).toHaveCount(1);
   await expect(page.getByTestId("sweep-plot")).toHaveAttribute("data-ready", "true");
@@ -228,7 +231,7 @@ test("live: a parameter sweep runs as one server job, and re-runs", async ({ pag
 
   await page.getByTestId("job").first().getByRole("button", { name: "Re-run" }).click();
   await expect(page.getByTestId("job")).toHaveCount(2);
-  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", { timeout: 300_000 });
+  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", JOB);
   const again = await page.evaluate(() => window.studio.jobs()[0].sweep);
   expect(again?.values).toEqual([30, 40, 50]);
 });
@@ -243,7 +246,7 @@ test("live: sweep of a non-scattering problem: a layer's thickness", async ({ pa
   await page.getByTestId("sweep-stop").fill("90");
   await page.getByTestId("sweep-num").fill("3");
   await page.getByTestId("sweep-run").click();
-  await expect(page.getByTestId("sweep-view")).toContainText("3/3 done", { timeout: 240_000 });
+  await expect(page.getByTestId("sweep-view")).toContainText("3/3 done", JOB);
   const res = await lastResult(page);
   expect(res.kind).toBe("sweep");
   expect(res.results[0].r.s[0]).not.toEqual(res.results[2].r.s[0]);
@@ -257,7 +260,7 @@ test("live: compare devices across EME and BPM, with their real differences", as
   await page.getByRole("checkbox", { name: "lightsmith-fdtd" }).uncheck();
   await expect(page.getByTestId("compare-btn")).toContainText("(2)");
   await page.getByTestId("compare-btn").click();
-  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", { timeout: 300_000 });
+  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", JOB);
   await page.getByTestId("center-tabs").getByTestId("tab-compare").click();
   await expect(page.getByTestId("compare-quantity")).toContainText("|S");
   await expect(page.getByTestId("compare-table").locator("tbody tr")).toHaveCount(1);
@@ -272,7 +275,7 @@ test("live: emission without a radiation pattern: Mie and FDTD, compared", async
   await expect(page.getByTestId("support-lightsmith-mie")).toContainText("supported", { timeout: 120_000 });
   await expect(page.getByTestId("compare-btn")).toContainText("(2)");
   await page.getByTestId("compare-btn").click();
-  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", { timeout: 600_000 });
+  await expect(page.getByTestId("job").first()).toHaveAttribute("data-status", "succeeded", JOB);
   await page.getByTestId("center-tabs").getByTestId("tab-compare").click();
   await expect(page.getByTestId("compare-overlay-plot")).toHaveAttribute("data-ready", "true");
   await expect(page.getByTestId("compare-table")).toContainText("%");

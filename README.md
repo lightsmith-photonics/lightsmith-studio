@@ -321,7 +321,8 @@ npm run test:e2e     # Playwright: everything below, nothing skipped
 ```
 
 `npm run test:e2e` needs `uv`, `../lightsmith` and `../lightsmith-cloud` (`uv sync --extra gpu` there once); it starts
-the dev servers and a local compute server on port 8231 itself (`playwright.config.ts`). Its projects:
+the dev servers and a local compute server on port 8231 itself (`playwright.config.ts`). On a machine whose GPU another
+process is using, `CUDA_VISIBLE_DEVICES= npm run test:e2e` solves on the CPU. Its projects:
 
 | Project | Runs against | Covers |
 |---|---|---|

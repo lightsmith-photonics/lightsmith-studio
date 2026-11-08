@@ -1,13 +1,11 @@
 """What a Lightsmith backend will discretise for a problem, computed by the library before any solve.
 
-`lightsmith.discretization(problem, method)` (library branch `layout-api`; see API_ASSUMPTIONS.md, "Solver
-layouts") returns the envelope
+`lightsmith.discretization(problem, method)` (see API_ASSUMPTIONS.md, "Solver layouts") returns the envelope
 
     {"backend", "method", "problem_kind", "layout_kind", "summary": {...}, "payload": {...},
      "estimate": {...}, "warnings": [...], "error": null | "..."}
 
-This script calls it when the installed library has it, and otherwise a verbatim copy of that module
-(scripts/_layouts_fallback.py), which reads the same private planning functions. It never solves.
+This script prints it as JSON. It never solves.
 
     uv run --project ../lightsmith python scripts/solver_layout.py [--method fdtd] < spec.json
     uv run --project ../lightsmith python scripts/solver_layout.py spec.json --method dda
@@ -26,12 +24,7 @@ import lightsmith as ls
 
 
 def layout(spec: dict, method: str = "auto") -> dict:
-    if hasattr(ls, "discretization"):
-        return ls.discretization(spec, method)
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from _layouts_fallback import discretization as fallback
-
-    return fallback(spec, method)
+    return ls.discretization(spec, method)
 
 
 def main(argv: list[str]) -> None:

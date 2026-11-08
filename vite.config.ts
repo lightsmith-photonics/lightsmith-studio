@@ -9,9 +9,9 @@ const LIBRARY = resolve(__dirname, "../lightsmith");
 
 /**
  * Development only: `POST /__library/v1/layout` runs scripts/solver_layout.py with the library checked out next
- * to Studio, so the previews show what the library will discretise before any compute server offers the proposed
- * `/v1/discretization` (API_ASSUMPTIONS.md). Answers 501 when there is no library or `uv`. Off with
- * STUDIO_LIBRARY_BRIDGE=0 (the Playwright mock runs use it off, so they need no Python).
+ * to Studio, so the previews show what the library will discretise when no compute server offers
+ * `/v1/discretization` (the mock, older servers; API_ASSUMPTIONS.md). Answers 501 when there is no library or `uv`.
+ * Off with STUDIO_LIBRARY_BRIDGE=0 (the Playwright mock project uses it off, so it needs no Python).
  */
 function libraryBridge(): Plugin {
   return {

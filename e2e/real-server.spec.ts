@@ -50,6 +50,9 @@ async function solve(page: Page) {
   await job.getByTestId("job-show").click();
 }
 
+/** FDTD at 8 nm cells, not the example's 2 nm: 22k cells instead of 1.4M, so a solve takes seconds even on the CPU. */
+const coarseFdtd = (page: Page) => page.evaluate(() => window.studio.apply({ op: "replace", path: ["options"], value: { fdtd: { spacing_nm: 8 } } }));
+
 /** The latest result, as Studio stored it. */
 const lastResult = (page: Page): Promise<any> => page.evaluate(() => window.studio.result(window.studio.jobs()[0].key));
 
@@ -145,6 +148,7 @@ for (const k of KINDS) {
     await expect(page.getByTestId("preview-summary")).toContainText(k.preview, { timeout: 120_000 });
     await expect(page.getByTestId("preview-source")).toContainText("(server)");
 
+    if (k.kind === "emission") await coarseFdtd(page);
     await solve(page);
     await expect(page.getByTestId(k.viewer)).toBeVisible();
     await expect(page.getByTestId(k.plot)).toHaveAttribute("data-ready", "true");
@@ -271,6 +275,7 @@ test("live: compare devices across EME and BPM, with their real differences", as
 test("live: emission without a radiation pattern: Mie and FDTD, compared", async ({ page }) => {
   await newProject(page, "emission");
   await page.evaluate(() => window.studio.apply({ op: "replace", path: ["radiation_pattern"], value: null }));
+  await coarseFdtd(page);
   await runTab(page);
   await expect(page.getByTestId("support-lightsmith-mie")).toContainText("supported", { timeout: 120_000 });
   await expect(page.getByTestId("compare-btn")).toContainText("(2)");

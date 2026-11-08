@@ -3,7 +3,8 @@
 // polarization (E) arrows, and the requested near-field plane. Scattering and
 // emission problems also show their FDTD simulation objects (fdtd/FdtdOverlay).
 
-import { Html, OrbitControls, TransformControls } from "@react-three/drei";
+import { OrbitControls, TransformControls } from "@react-three/drei";
+import { SceneLabel } from "./SceneLabel";
 import { Canvas, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
@@ -107,9 +108,9 @@ function Arrow(props: { from: Vec3; dir: Vec3; length: number; color: string; la
         <coneGeometry args={[props.width * 2.6, head, 24]} />
         <meshBasicMaterial color={props.color} />
       </mesh>
-      <Html position={[0, props.length * 1.08, 0]} center className="scene-label" style={{ color: props.color }}>
+      <SceneLabel position={[0, props.length * 1.08, 0]} center className="scene-label" color={props.color}>
         {props.label}
-      </Html>
+      </SceneLabel>
     </group>
   );
 }
@@ -213,9 +214,9 @@ function NearFieldPlane(props: { req: JsonObject; center: Vec3 }) {
         <edgesGeometry args={[new THREE.PlaneGeometry(2 * hw, 2 * hw)]} />
         <lineBasicMaterial color="#38d39f" />
       </lineSegments>
-      <Html position={[hw, hw, 0]} className="scene-label" style={{ color: "#38d39f" }}>
+      <SceneLabel position={[hw, hw, 0]} className="scene-label" color="#38d39f">
         near field {plane}
-      </Html>
+      </SceneLabel>
     </group>
   );
 }

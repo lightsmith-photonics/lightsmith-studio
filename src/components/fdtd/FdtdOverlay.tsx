@@ -3,7 +3,8 @@
 // and the Yee node planes on a slice. From the spec: mesh-override boxes (selectable, moved with the gizmo like
 // particles), the Gaussian beam's focus, waist and envelope, and the emission dipole.
 
-import { Html, Line, TransformControls } from "@react-three/drei";
+import { Line, TransformControls } from "@react-three/drei";
+import { SceneLabel } from "../SceneLabel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { FdtdLayout, SymmetryInfo } from "../../api/types";
@@ -50,9 +51,9 @@ function WireBox(props: { lo: number[]; hi: number[]; color: string; dashed?: bo
     <group userData={{ testId: props.testId }}>
       <Line points={pts} segments color={props.color} lineWidth={props.width ?? 1.4} dashed={props.dashed} dashSize={span / 40} gapSize={span / 60} transparent opacity={0.95} />
       {props.label && (
-        <Html position={[props.hi[0], props.lo[1], props.hi[2]]} className="scene-label" style={{ color: props.color }}>
+        <SceneLabel position={[props.hi[0], props.lo[1], props.hi[2]]} className="scene-label" color={props.color}>
           {props.label}
-        </Html>
+        </SceneLabel>
       )}
     </group>
   );
@@ -119,9 +120,9 @@ function MirrorPlanes({ sym, lo, hi }: { sym: SymmetryInfo; lo: number[]; hi: nu
               <edgesGeometry args={[new THREE.PlaneGeometry(w, h)]} />
               <lineBasicMaterial color={color} />
             </lineSegments>
-            <Html position={[-w / 2, h / 2, 0]} className="scene-label" style={{ color }}>
+            <SceneLabel position={[-w / 2, h / 2, 0]} className="scene-label" color={color}>
               {ax} mirror · {pec ? "PEC (odd)" : "PMC (even)"}
-            </Html>
+            </SceneLabel>
           </group>
         );
       })}
@@ -155,9 +156,9 @@ function OverrideBox(props: { box: MeshOverrideBox; selected: boolean; gizmo: bo
           <meshBasicMaterial color={FDTD_COLORS.override} transparent opacity={props.selected ? 0.2 : 0.1} depthWrite={false} />
         </mesh>
         <WireBox lo={half.map((h) => -h)} hi={half} color={FDTD_COLORS.override} width={props.selected ? 2.4 : 1.5} />
-        <Html position={[half[0], -half[1], half[2]]} className="scene-label" style={{ color: FDTD_COLORS.override }}>
+        <SceneLabel position={[half[0], -half[1], half[2]]} className="scene-label" color={FDTD_COLORS.override}>
           override {box.index + 1} · {s.every((v) => v === s[0]) ? `${s[0]} nm` : s.join("/") + " nm"}
-        </Html>
+        </SceneLabel>
       </group>
       {props.selected && props.gizmo && obj && (
         <TransformControls
@@ -221,9 +222,9 @@ function GaussianBeamGlyph({ beam, reach }: { beam: BeamGeometry; reach: number 
       <Line points={axis} color={FDTD_COLORS.beam} lineWidth={1} dashed dashSize={L / 30} gapSize={L / 40} />
       <Line points={ring} color={FDTD_COLORS.beam} lineWidth={2} />
       <Line points={[[f[0] - m, f[1], f[2]], [f[0] + m, f[1], f[2]], [f[0], f[1] - m, f[2]], [f[0], f[1] + m, f[2]], [f[0], f[1], f[2] - m], [f[0], f[1], f[2] + m]]} segments color="#ffffff" lineWidth={2} />
-      <Html position={ring[8]} className="scene-label" style={{ color: FDTD_COLORS.beam }}>
+      <SceneLabel position={ring[8]} className="scene-label" color={FDTD_COLORS.beam}>
         focus · w₀ {w0} nm @ {Number(beam.wavelength.toPrecision(4))} nm · z_R {Number(zr.toPrecision(3))} nm
-      </Html>
+      </SceneLabel>
     </group>
   );
 }
@@ -264,9 +265,9 @@ function DipoleGlyph(props: { dip: DipoleGeometry; size: number; selected: boole
             <meshStandardMaterial color="#ffffff" />
           </mesh>
         </group>
-        <Html position={[L * 0.3, 0, L * 0.3]} className="scene-label" style={{ color: FDTD_COLORS.dipole }}>
+        <SceneLabel position={[L * 0.3, 0, L * 0.3]} className="scene-label" color={FDTD_COLORS.dipole}>
           p ({o.map((v) => v.toFixed(2)).join(", ")})
-        </Html>
+        </SceneLabel>
       </group>
       {props.selected && props.gizmo && obj && (
         <TransformControls

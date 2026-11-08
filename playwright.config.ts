@@ -39,7 +39,11 @@ export default defineConfig({
     ...devices["Desktop Chrome"],
     viewport: { width: 1440, height: 900 },
     trace: "retain-on-failure",
-    launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+    launchOptions: {
+      args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
+      // a browser binary of your own, when `npx playwright install chromium` is not an option
+      ...(process.env.STUDIO_E2E_CHROMIUM ? { executablePath: process.env.STUDIO_E2E_CHROMIUM } : {}),
+    },
   },
   projects: [
     { name: "mock", testIgnore: /fdtd-library|real-server/, use: { baseURL: `http://localhost:${MOCK_PORT}` } },

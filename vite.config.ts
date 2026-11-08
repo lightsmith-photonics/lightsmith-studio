@@ -11,7 +11,8 @@ const LIBRARY = resolve(__dirname, "../lightsmith");
  * Development only: `POST /__library/v1/layout` runs scripts/solver_layout.py with the library checked out next
  * to Studio, so the previews show what the library will discretise when no compute server offers
  * `/v1/discretization` (the mock, older servers; API_ASSUMPTIONS.md). Answers 501 when there is no library or `uv`.
- * Off with STUDIO_LIBRARY_BRIDGE=0 (the Playwright mock project uses it off, so it needs no Python).
+ * Off with STUDIO_LIBRARY_BRIDGE=0 (the Playwright mock project uses it off, so it needs no Python). `--no-sync`: a
+ * preview must never re-lock or re-install the library's environment, which other work may be using.
  */
 function libraryBridge(): Plugin {
   return {
@@ -30,7 +31,7 @@ function libraryBridge(): Plugin {
         let body = "";
         req.on("data", (c) => (body += c));
         req.on("end", () => {
-          const child = spawn("uv", ["run", "--project", LIBRARY, "python", resolve(__dirname, "scripts/solver_layout.py")], { stdio: ["pipe", "pipe", "pipe"] });
+          const child = spawn("uv", ["run", "--no-sync", "--project", LIBRARY, "python", resolve(__dirname, "scripts/solver_layout.py")], { stdio: ["pipe", "pipe", "pipe"] });
           let out = "";
           let err = "";
           child.stdout.on("data", (c) => (out += c));
